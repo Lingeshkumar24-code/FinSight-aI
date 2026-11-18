@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import advisor, auth, documents, financials, reports, simulator
+from app.api.routes import advisor, alerts, auth, documents, financials, reports, simulator
 from app.config import get_settings
 from app.core.logging import configure_logging
 from app.llm.factory import build_llm_router
@@ -50,6 +50,7 @@ def create_app() -> FastAPI:
     app.include_router(advisor.router, prefix=prefix)
     app.include_router(documents.router, prefix=prefix)
     app.include_router(reports.router, prefix=prefix)
+    app.include_router(alerts.router, prefix=prefix)
 
     @app.get("/health", tags=["health"])
     def health() -> dict:

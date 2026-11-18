@@ -1,0 +1,43 @@
+{
+  "name": "FinSight AI - Alerts & Notifications (Email & In-App)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "finsight-alerts",
+        "httpMethod": "POST",
+        "responseMode": "onReceived"
+      },
+      "name": "Alert Webhook Receiver",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.FINSIGHT_API_BASE_URL || 'http://backend:8000/api/v1'}}/alerts/webhook",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-N8N-Secret", "value": "={{$env.N8N_SHARED_SECRET || 'finsight-n8n-secret'}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"business_id\": $json.business_id || \"demo-business-001\",\n  \"title\": \"🔔 n8n Push: \" + ($json.title || \"Automated System Notice\"),\n  \"message\": $json.message || \"Financial alert triggered by external automated monitor.\",\n  \"severity\": $json.severity || \"watch\",\n  \"source\": \"n8n_automation\"\n}"
+      },
+      "name": "Post to In-App Alert Stream",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [280, 0]
+    }
+  ],
+  "connections": {
+    "Alert Webhook Receiver": {
+      "main": [
+        [{ "node": "Post to In-App Alert Stream", "type": "main", "index": 0 }]
+      ]
+    }
+  }
+}

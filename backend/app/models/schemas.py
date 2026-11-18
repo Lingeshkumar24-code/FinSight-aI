@@ -249,3 +249,35 @@ class ReportResponse(BaseModel):
     report_id: str
     title: str
     generated_sections: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Alerts & n8n Automation
+# ---------------------------------------------------------------------------
+
+
+class AlertItem(BaseModel):
+    id: str
+    business_id: str
+    title: str
+    message: str
+    severity: str = "watch"  # info | watch | critical | low
+    source: str = "n8n_automation"  # n8n_automation | risk_engine | budget_engine
+    timestamp: str
+    read: bool = False
+
+
+class AlertWebhookPayload(BaseModel):
+    business_id: str = "demo-business-001"
+    title: str
+    message: str
+    severity: str = "watch"
+    source: str = "n8n_automation"
+
+
+class TriggerAlertCheckResponse(BaseModel):
+    status: str
+    alerts_generated: int
+    n8n_webhook_dispatched: bool
+    alerts: list[AlertItem]
+

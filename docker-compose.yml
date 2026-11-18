@@ -22,6 +22,8 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-baidu/ernie-5.5-flash-preview:free}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678/webhook/finsight-alerts}
+      N8N_SHARED_SECRET: ${N8N_SHARED_SECRET:-finsight-n8n-secret}
     depends_on:
       db:
         condition: service_healthy
@@ -62,6 +64,23 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # n8n Workflow Automation Engine
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=UTC
+      - FINSIGHT_API_BASE_URL=http://backend:8000/api/v1
+      - N8N_SHARED_SECRET=${N8N_SHARED_SECRET:-finsight-n8n-secret}
+    volumes:
+      - finsight_n8n_data:/home/node/.n8n
+      - ./infra/n8n:/backup/workflows:ro
+    restart: unless-stopped
+
   # Optional self-hosted LLM (run with --profile local-llm)
   ollama:
     image: ollama/ollama:latest
@@ -74,4 +93,5 @@ services:
 
 volumes:
   finsight_pg_data:
+  finsight_n8n_data:
   finsight_ollama_data:

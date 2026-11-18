@@ -177,4 +177,38 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  getAlerts: () => request<AlertItem[]>("/alerts"),
+
+  triggerAlertCheck: () =>
+    request<{
+      status: string;
+      alerts_generated: number;
+      n8n_webhook_dispatched: boolean;
+      alerts: AlertItem[];
+    }>("/alerts/trigger-check", {
+      method: "POST",
+    }),
+
+  markAlertRead: (alertId: string) =>
+    request<AlertItem>(`/alerts/${alertId}/read`, {
+      method: "POST",
+    }),
+
+  dismissAlert: (alertId: string) =>
+    request<{ status: string; alert_id: string }>(`/alerts/${alertId}`, {
+      method: "DELETE",
+    }),
 };
+
+export interface AlertItem {
+  id: string;
+  business_id: string;
+  title: string;
+  message: string;
+  severity: "info" | "watch" | "critical" | "low";
+  source: string;
+  timestamp: string;
+  read: boolean;
+}
+

@@ -55,8 +55,8 @@ class Settings(BaseSettings):
     LLM_PROVIDER_PRIORITY: list[str] = ["gemini", "openai", "openrouter", "ollama"]
 
     # --- n8n (automation layer) ---
-    N8N_WEBHOOK_URL: str = ""
-    N8N_SHARED_SECRET: str = ""
+    N8N_WEBHOOK_URL: str = "http://localhost:5678/webhook/finsight-alerts"
+    N8N_SHARED_SECRET: str = "finsight-n8n-secret"
 
 
 @lru_cache

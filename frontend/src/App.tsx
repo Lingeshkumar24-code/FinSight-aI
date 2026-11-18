@@ -7,6 +7,7 @@ import { Upload } from "./pages/Upload";
 import { AIAdvisor } from "./pages/AIAdvisor";
 import { Simulator } from "./pages/Simulator";
 import { Reports } from "./pages/Reports";
+import { Alerts } from "./pages/Alerts";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -30,6 +31,7 @@ function AppRoutes() {
         <Route path="/advisor" element={<AIAdvisor />} />
         <Route path="/simulator" element={<Simulator />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/alerts" element={<Alerts />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
