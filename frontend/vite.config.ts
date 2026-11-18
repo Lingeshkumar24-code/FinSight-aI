@@ -6,8 +6,12 @@ export default defineConfig({
   server: {
     port: 5175,
     proxy: {
-      // Proxy /api → the backend so the browser (which cannot
-      // reach the host loopback directly) can reach the API.
+      '/api': 'http://127.0.0.1:8003',
+    },
+  },
+  preview: {
+    port: 5175,
+    proxy: {
       '/api': 'http://127.0.0.1:8003',
     },
   },

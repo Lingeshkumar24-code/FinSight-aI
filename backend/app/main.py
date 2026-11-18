@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -12,6 +14,21 @@ from app.llm.factory import build_llm_router
 from app.rag.vectorstore import InMemoryVectorStore
 
 
+async def _periodic_n8n_monitor_task(settings):
+    """Background automated financial monitoring worker matching n8n's scheduled cron.
+
+    Periodically scans business financials, updates the in-app alert feed,
+    and dispatches webhooks to n8n when reachable.
+    """
+    await asyncio.sleep(5)  # brief initial delay
+    while True:
+        try:
+            await alerts.evaluate_and_dispatch_alerts("demo-business-001", settings)
+        except Exception:
+            pass
+        await asyncio.sleep(120)  # runs every 2 minutes
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -22,8 +39,15 @@ async def lifespan(app: FastAPI):
     app.state.vector_store = InMemoryVectorStore()
     app.state.llm_router = build_llm_router(settings)
 
+    monitor_task = asyncio.create_task(_periodic_n8n_monitor_task(settings))
+
     yield
-    # (no teardown needed for in-memory store / stateless HTTP providers)
+
+    monitor_task.cancel()
+    try:
+        await monitor_task
+    except asyncio.CancelledError:
+        pass
 
 
 def create_app() -> FastAPI:

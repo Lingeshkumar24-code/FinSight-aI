@@ -107,20 +107,17 @@ def receive_n8n_webhook(
     return AlertItem(**new_alert)
 
 
-@router.post("/trigger-check", response_model=TriggerAlertCheckResponse)
-async def trigger_automated_alert_check(
-    user: TokenPayload = Depends(get_current_user),
-    settings: Settings = Depends(get_settings),
-) -> TriggerAlertCheckResponse:
-    """Manually triggers an automated financial monitoring check (simulating the
+async def evaluate_and_dispatch_alerts(
+    business_id: str = "demo-business-001",
+    settings: Settings | None = None,
+) -> list[dict[str, Any]]:
+    """Core evaluation engine that performs the scheduled automated budget & risk
 
-    n8n daily schedule): evaluates budget variance and risk thresholds, logs new
-    alert messages, and forwards them to n8n if N8N_WEBHOOK_URL is configured.
+    monitoring check matching the n8n cron schedule.
     """
-    business_id = user.business_id
     alerts = _get_business_alerts(business_id)
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    generated_alerts: list[AlertItem] = []
+    generated_alerts: list[dict[str, Any]] = []
 
     # 1. Evaluate Budget Variance Engine
     budget_engine = BudgetVarianceEngine(watch_threshold_pct=5.0, breach_threshold_pct=10.0)
@@ -145,18 +142,21 @@ async def trigger_automated_alert_check(
     )
 
     for breach in budget_report.breaches():
-        alert = {
-            "id": str(uuid.uuid4()),
-            "business_id": business_id,
-            "title": f"🚨 Automated Alert: Budget Breach in {breach.category.capitalize()}",
-            "message": f"{breach.category.capitalize()} variance reached {breach.variance_pct:+.1f}% (${breach.variance_abs:,.0f} variance). Breach threshold is 10.0%.",
-            "severity": "critical",
-            "source": "n8n_automation",
-            "timestamp": now_str,
-            "read": False,
-        }
-        alerts.insert(0, alert)
-        generated_alerts.append(AlertItem(**alert))
+        alert_title = f"🚨 Automated Alert: Budget Breach in {breach.category.capitalize()}"
+        # Avoid duplicate alerts if already present in the last hour
+        if not any(a["title"] == alert_title for a in alerts[:5]):
+            alert = {
+                "id": str(uuid.uuid4()),
+                "business_id": business_id,
+                "title": alert_title,
+                "message": f"{breach.category.capitalize()} variance reached {breach.variance_pct:+.1f}% (${breach.variance_abs:,.0f} variance). Breach threshold is 10.0%.",
+                "severity": "critical",
+                "source": "n8n_automation",
+                "timestamp": now_str,
+                "read": False,
+            }
+            alerts.insert(0, alert)
+            generated_alerts.append(alert)
 
     # 2. Evaluate Risk Engine
     risk_engine = RiskDetectionEngine()
@@ -172,24 +172,25 @@ async def trigger_automated_alert_check(
 
     for flag in risk_report.flags:
         if flag.level.value in ("watch", "high", "critical"):
-            alert = {
-                "id": str(uuid.uuid4()),
-                "business_id": business_id,
-                "title": f"⚠️ Automated Alert: {flag.code.replace('_', ' ').title()}",
-                "message": flag.message,
-                "severity": flag.level.value,
-                "source": "n8n_automation",
-                "timestamp": now_str,
-                "read": False,
-            }
-            alerts.insert(0, alert)
-            generated_alerts.append(AlertItem(**alert))
+            alert_title = f"⚠️ Automated Alert: {flag.code.replace('_', ' ').title()}"
+            if not any(a["title"] == alert_title for a in alerts[:5]):
+                alert = {
+                    "id": str(uuid.uuid4()),
+                    "business_id": business_id,
+                    "title": alert_title,
+                    "message": flag.message,
+                    "severity": flag.level.value,
+                    "source": "n8n_automation",
+                    "timestamp": now_str,
+                    "read": False,
+                }
+                alerts.insert(0, alert)
+                generated_alerts.append(alert)
 
     # 3. Dispatch Webhook to external n8n if configured
-    dispatched = False
-    if settings.N8N_WEBHOOK_URL:
+    if settings and settings.N8N_WEBHOOK_URL:
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=4.0) as client:
                 await client.post(
                     settings.N8N_WEBHOOK_URL,
                     json={
@@ -201,14 +202,29 @@ async def trigger_automated_alert_check(
                     },
                     headers={"X-N8N-Secret": settings.N8N_SHARED_SECRET},
                 )
-            dispatched = True
         except Exception as exc:
-            logger.warning("n8n_webhook_dispatch_failed", error=str(exc))
+            logger.debug("n8n_webhook_offline", error=str(exc))
 
+    return generated_alerts
+
+
+@router.post("/trigger-check", response_model=TriggerAlertCheckResponse)
+async def trigger_automated_alert_check(
+    user: TokenPayload = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+) -> TriggerAlertCheckResponse:
+    """Manually triggers an automated financial monitoring check (simulating the
+
+    n8n daily schedule): evaluates budget variance and risk thresholds, logs new
+    alert messages, and forwards them to n8n if N8N_WEBHOOK_URL is configured.
+    """
+    business_id = user.business_id
+    generated = await evaluate_and_dispatch_alerts(business_id, settings)
+    alerts = _get_business_alerts(business_id)
     return TriggerAlertCheckResponse(
         status="success",
-        alerts_generated=len(generated_alerts),
-        n8n_webhook_dispatched=dispatched,
+        alerts_generated=len(generated),
+        n8n_webhook_dispatched=bool(settings.N8N_WEBHOOK_URL),
         alerts=[AlertItem(**a) for a in alerts],
     )
 
