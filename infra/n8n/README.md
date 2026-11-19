@@ -89,3 +89,65 @@ develop and test the RAG/advisor flow without n8n at all — n8n's job
 is purely to get *binary* files (PDF/XLSX) turned into text before
 they reach that same endpoint, and to run things on a schedule nothing
 in the request/response-driven FastAPI app should be doing.
+
+---
+
+## Running n8n locally (Windows, no Docker)
+
+Docker Compose already includes an `n8n` service (`docker compose up`).
+If Docker isn't available, run n8n from npm against the same workflows:
+
+```powershell
+# once
+npm install -g n8n
+
+# mint a long-lived token for the workflows (they call the API as a service)
+cd backend
+.\.venv\Scripts\python scripts\mint_service_token.py --days 90 --write-env
+
+# import + publish the three workflow JSON files, then start n8n
+cd ..
+.\infra\n8n\start-local.ps1 -Import
+```
+
+Re-running `-Import` skips workflows whose name is already in the n8n
+database (n8n's importer always creates a new workflow, so a blind
+re-import leaves duplicates competing for the same webhook path). To
+replace everything — for example after editing a workflow JSON — stop
+n8n and run:
+
+```powershell
+.\infra\n8n\start-local.ps1 -Reset
+```
+
+`-Reset` deletes `~/.n8n/database.sqlite` (workflows, executions,
+credentials), re-applies the migrations, imports the three files,
+publishes the ones that don't need external credentials, and starts
+n8n.
+
+`start-local.ps1` loads `.env` and exports the variables the workflows
+read (`FINSIGHT_API_BASE_URL`, `FINSIGHT_SERVICE_TOKEN`,
+`N8N_SHARED_SECRET`), then serves n8n on http://localhost:5678. It sets
+`N8N_BLOCK_ENV_ACCESS_IN_NODE=false` because n8n blocks `$env.*` inside
+expressions by default — without it the HTTP nodes can't resolve their
+URL, token or secret. It also rewrites a `localhost` API base to
+`127.0.0.1`: Node resolves `localhost` to `::1` first, so a backend
+bound to IPv4 only would look offline to n8n.
+
+n8n 2.x only registers webhooks for *published* workflows, so the
+workflows are published at import time. The document-ingestion workflow
+stays unpublished here because its Supabase/Postgres/SMTP nodes need
+credentials this machine doesn't have; the two HTTP-only workflows are
+unaffected.
+
+Both directions are exercised once both sides are up:
+
+| Direction | Path |
+|---|---|
+| n8n → API (alerts) | `POST /webhook/finsight-alerts` → `POST /api/v1/alerts/webhook` |
+| n8n → API (scheduled scan) | `POST /webhook/finsight/run-monitoring` → `/financials/budget-variance` + `/financials/risk` → `/alerts/webhook` |
+| API → n8n | `POST /api/v1/alerts/trigger-check` forwards to `N8N_WEBHOOK_URL` |
+
+The service token expires (`--days`), unlike the demo user JWT's 24h —
+re-mint it and restart n8n if automations start returning 401.
+

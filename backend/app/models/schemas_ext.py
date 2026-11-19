@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.models.schemas import AlertItem
 
 
 class FinancialRecordIn(BaseModel):
@@ -532,3 +534,108 @@ class DocumentOut(BaseModel):
     created_at: str
     chunks: int
     fields: list[ExtractedFieldOut]
+
+
+# ---------------------------------------------------------------------------
+# Live benchmark market data (Twelve Data) + investment outlook
+# ---------------------------------------------------------------------------
+
+
+class MarketQuote(BaseModel):
+    symbol: str
+    name: str = ""
+    exchange: str = ""
+    currency: str = ""
+    price: float | None = None
+    change: float | None = None
+    percent_change: float | None = None
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+    previous_close: float | None = None
+    volume: int | None = None
+    is_market_open: bool | None = None
+    updated_at: str | None = None
+
+
+class MarketOverview(BaseModel):
+    quotes: list[MarketQuote]
+    as_of: str
+    source: str = "twelvedata"
+    cached: bool = False
+
+
+class MarketSearchResult(BaseModel):
+    symbol: str
+    name: str = ""
+    exchange: str = ""
+    currency: str = ""
+    instrument_type: str = ""
+    country: str = ""
+
+
+class MarketPricePoint(BaseModel):
+    datetime: str
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+    close: float | None = None
+    volume: int | None = None
+
+
+class MarketHistory(BaseModel):
+    symbol: str
+    interval: str = "1day"
+    currency: str = ""
+    exchange: str = ""
+    points: list[MarketPricePoint]
+
+
+class MarketUsage(BaseModel):
+    current_usage: int | None = None
+    plan_limit: int | None = None
+    daily_usage: int | None = None
+    plan_daily_limit: int | None = None
+    plan_category: str = ""
+
+
+class InvestmentOutlookRequest(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=24)
+    amount: float = Field(..., gt=0, description="Amount to invest, in the quote currency")
+    horizon_months: int = Field(12, ge=1, le=60)
+    cash_available: float | None = Field(None, ge=0)
+    monthly_net_income: float | None = Field(None, ge=0)
+    notify: bool = Field(
+        False, description="Also raise an alert (and dispatch it to n8n when configured)"
+    )
+
+
+class InvestmentOutlookResponse(BaseModel):
+    symbol: str
+    investment: float
+    horizon_months: int
+    horizon_days: int
+
+    annualized_return_pct: float
+    annualized_volatility_pct: float
+    sharpe_like: float | None = None
+
+    expected_value: float
+    expected_profit: float
+    expected_profit_pct: float
+
+    best_case_value: float
+    best_case_profit: float
+    worst_case_value: float
+    worst_case_profit: float
+
+    var_95_value: float
+    var_95_loss: float
+    probability_of_loss_pct: float
+    max_drawdown_pct: float
+    observations: int
+    notes: list[str] = []
+
+    as_of: str
+    latest_close: float | None = None
+    alert: AlertItem | None = None

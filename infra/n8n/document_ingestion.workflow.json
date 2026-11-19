@@ -10,6 +10,7 @@
       "name": "Supabase Storage Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
+      "webhookId": "2b7e4c19-8d3f-4a5b-b6c8-9e1f3a7d2c60",
       "position": [0, 0],
       "notes": "Configured as a Supabase Storage 'object created' event target for the financial-documents bucket."
     },

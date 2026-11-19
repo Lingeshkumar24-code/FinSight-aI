@@ -34,7 +34,7 @@ export function Alerts() {
       setAlerts(resp.alerts);
       setStatusMsg(
         `Automated scan completed: ${resp.alerts_generated} alert(s) generated. ${
-          resp.n8n_webhook_dispatched ? "Dispatched webhook to n8n Cloud." : "Stored in in-app alert feed."
+          resp.n8n_webhook_dispatched ? "Dispatched webhook to n8n." : "Stored in in-app alert feed."
         }`
       );
     } catch {

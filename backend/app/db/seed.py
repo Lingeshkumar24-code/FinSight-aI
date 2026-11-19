@@ -5,8 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.extensions import Budget, CashFlowRecord, CapitalStructureRecord, ExpenseRecord
 from app.db.models import Business, FinancialRecord
+from app.db.tenant import demo_business_id
 
-DEMO_BUSINESS_ID = "demo-business-001"
+DEMO_BUSINESS_ID = demo_business_id()
 
 _DEMO_PERIODS = [
     {

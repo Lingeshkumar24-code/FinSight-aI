@@ -9,6 +9,7 @@ import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from app.config import Settings, get_settings
+from app.db.tenant import demo_business_id
 from app.core.security import TokenPayload, get_current_user
 from app.engines.budget_variance import BudgetVarianceEngine
 from app.engines.risk_detection import RiskDetectionEngine, RiskInputs
@@ -32,7 +33,7 @@ def _get_business_alerts(business_id: str) -> list[dict[str, Any]]:
                 "id": str(uuid.uuid4()),
                 "business_id": business_id,
                 "title": "Budget Breach Detected: Marketing & Growth",
-                "message": "Q3 Marketing actual spend ($85,000) exceeded allocated budget ($70,000) by +21.4% ($15,000 variance). Immediate re-allocation review recommended.",
+                "message": "Q3 Marketing actual spend (₹85,000) exceeded allocated budget (₹70,000) by +21.4% (₹15,000 variance). Immediate re-allocation review recommended.",
                 "severity": "critical",
                 "source": "n8n_automation",
                 "timestamp": now_str,
@@ -107,14 +108,66 @@ def receive_n8n_webhook(
     return AlertItem(**new_alert)
 
 
+def push_alert(
+    business_id: str,
+    title: str,
+    message: str,
+    *,
+    severity: str = "watch",
+    source: str = "risk_engine",
+) -> dict[str, Any]:
+    """Insert an alert into the in-app stream and return it."""
+    alerts = _get_business_alerts(business_id)
+    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    alert = {
+        "id": str(uuid.uuid4()),
+        "business_id": business_id,
+        "title": title,
+        "message": message,
+        "severity": severity,
+        "source": source,
+        "timestamp": now_str,
+        "read": False,
+    }
+    alerts.insert(0, alert)
+    logger.info("alert_pushed", title=title, severity=severity, source=source)
+    return alert
+
+
+async def dispatch_alert_to_n8n(alert: dict[str, Any], settings: Settings) -> bool:
+    """Forward one alert to the n8n webhook, if one is configured."""
+    if not settings.N8N_WEBHOOK_URL:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            await client.post(
+                settings.N8N_WEBHOOK_URL,
+                json={
+                    "business_id": alert["business_id"],
+                    "title": alert["title"],
+                    "message": alert["message"],
+                    "severity": alert["severity"],
+                    "source": alert["source"],
+                },
+                headers={"X-N8N-Secret": settings.N8N_SHARED_SECRET},
+            )
+        return True
+    except Exception as exc:
+        logger.debug("n8n_webhook_offline", error=str(exc))
+        return False
+
+
 async def evaluate_and_dispatch_alerts(
-    business_id: str = "demo-business-001",
+    business_id: str | None = None,
     settings: Settings | None = None,
+    *,
+    force_dispatch: bool = False,
 ) -> list[dict[str, Any]]:
     """Core evaluation engine that performs the scheduled automated budget & risk
 
     monitoring check matching the n8n cron schedule.
     """
+    business_id = business_id or demo_business_id()
     alerts = _get_business_alerts(business_id)
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     generated_alerts: list[dict[str, Any]] = []
@@ -143,13 +196,13 @@ async def evaluate_and_dispatch_alerts(
 
     for breach in budget_report.breaches():
         alert_title = f"🚨 Automated Alert: Budget Breach in {breach.category.capitalize()}"
-        # Avoid duplicate alerts if already present in the last hour
-        if not any(a["title"] == alert_title for a in alerts[:5]):
+        # Avoid duplicate alerts if the same breach is already in the stream
+        if not any(a["title"] == alert_title for a in alerts):
             alert = {
                 "id": str(uuid.uuid4()),
                 "business_id": business_id,
                 "title": alert_title,
-                "message": f"{breach.category.capitalize()} variance reached {breach.variance_pct:+.1f}% (${breach.variance_abs:,.0f} variance). Breach threshold is 10.0%.",
+                "message": f"{breach.category.capitalize()} variance reached {breach.variance_pct:+.1f}% (₹{breach.variance_abs:,.0f} variance). Breach threshold is 10.0%.",
                 "severity": "critical",
                 "source": "n8n_automation",
                 "timestamp": now_str,
@@ -173,7 +226,7 @@ async def evaluate_and_dispatch_alerts(
     for flag in risk_report.flags:
         if flag.level.value in ("watch", "high", "critical"):
             alert_title = f"⚠️ Automated Alert: {flag.code.replace('_', ' ').title()}"
-            if not any(a["title"] == alert_title for a in alerts[:5]):
+            if not any(a["title"] == alert_title for a in alerts):
                 alert = {
                     "id": str(uuid.uuid4()),
                     "business_id": business_id,
@@ -187,8 +240,12 @@ async def evaluate_and_dispatch_alerts(
                 alerts.insert(0, alert)
                 generated_alerts.append(alert)
 
-    # 3. Dispatch Webhook to external n8n if configured
-    if settings and settings.N8N_WEBHOOK_URL:
+    # 3. Dispatch Webhook to external n8n if configured — only when this run
+    # produced something new, so the scheduled monitor doesn't re-notify
+    # subscribers every cycle about alerts they already received. An explicit
+    # manual check (force_dispatch) always round-trips to n8n so the
+    # automation can be exercised on demand.
+    if settings and settings.N8N_WEBHOOK_URL and (generated_alerts or force_dispatch):
         try:
             async with httpx.AsyncClient(timeout=4.0) as client:
                 await client.post(
@@ -219,7 +276,9 @@ async def trigger_automated_alert_check(
     alert messages, and forwards them to n8n if N8N_WEBHOOK_URL is configured.
     """
     business_id = user.business_id
-    generated = await evaluate_and_dispatch_alerts(business_id, settings)
+    generated = await evaluate_and_dispatch_alerts(
+        business_id, settings, force_dispatch=True
+    )
     alerts = _get_business_alerts(business_id)
     return TriggerAlertCheckResponse(
         status="success",

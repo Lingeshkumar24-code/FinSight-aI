@@ -69,6 +69,8 @@ _FINANCE_SIGNALS = (
     "hire", "headcount", "capex", "opex", "break even", "breakeven",
     "report", "statement", "document", "uploaded", "forecast",
     "ratio", "liquidity", "solvency", "risk", "rate",
+    "borrow", "borrowing", "lending", "credit", "plan", "fund", "funds",
+    "invest", "investment", "investing", "stock", "stocks", "market", "portfolio", "shares",
 )
 
 
@@ -303,7 +305,11 @@ def make_execute_tool(retriever: Retriever | None):
         # but documents have been indexed and a retriever is active, fall back to RAG
         # so questions like "What does the Q3 memo state about revenue?" get answered
         # from document context instead of stalling on empty engine inputs.
-        if exec_errors and retriever is not None:
+        rag_requested = any(
+            term in state.get("user_query", "").lower()
+            for term in ("document", "uploaded", "file", "report", "memo", "according to")
+        )
+        if exec_errors and retriever is not None and rag_requested:
             context = retriever.retrieve(state.get("user_query", ""))
             if context.combined_text:
                 return {
@@ -365,7 +371,31 @@ def _template_response(state: AgentState) -> str:
 
     result = state.get("tool_result", {})
     lines: list[str] = []
+    context = result.get("context") if isinstance(result, dict) else None
+    outlook = state.get("extracted_params", {}).get("investment_outlook")
+    if isinstance(outlook, dict) and outlook.get("symbol"):
+        try:
+            amount = float(outlook.get("amount") or 0)
+            expected = float(outlook.get("expected_profit") or 0)
+            worst = float(outlook.get("worst_case_profit") or 0)
+            var_loss = float(outlook.get("var_95_loss") or 0)
+            chance = float(outlook.get("probability_of_loss_pct") or 0)
+            lines.append(
+                f"- {outlook['symbol']} over {outlook.get('horizon_months', '?')} months on "
+                f"₹{amount:,.0f}: expected ₹{expected:+,.0f}, worst case ₹{worst:+,.0f} in the "
+                f"80% band, 95% value-at-risk loss ₹{var_loss:,.0f}, "
+                f"modelled chance of loss {chance:.0f}%."
+            )
+            lines.append(
+                "- The numbers are deterministic projections from the asset's own price "
+                "history, not recommendations. Size the position so the 95% loss does not "
+                "breach your operating cash buffer."
+            )
+        except (TypeError, ValueError):
+            pass
     for k, v in result.items():
+        if k == "context":
+            continue
         if isinstance(v, list):
             if v and not isinstance(v[0], dict):
                 lines.append(f"- {k}: {', '.join(str(x) for x in v)}")
@@ -373,7 +403,14 @@ def _template_response(state: AgentState) -> str:
             continue
         else:
             lines.append(f"- {k}: {v}")
-    body = "\n".join(lines) if lines else "See structured result for details."
+    if lines:
+        body = "\n".join(lines)
+    elif isinstance(context, str) and context.strip():
+        # RAG-only answers: quote the retrieved passages rather than
+        # returning "See structured result for details."
+        body = "From your uploaded documents:\n" + context.strip()[:800]
+    else:
+        body = "See structured result for details."
     citations = state.get("rag_citations", [])
     if citations:
         body += "\n\nSources: " + "; ".join(citations)
@@ -400,10 +437,17 @@ def make_generate_response(llm_router: LLMRouter | None):
 
         rag_context = state.get("tool_result", {}).get("context", "")
         context_section = f"\nRetrieved document context:\n{rag_context}\n" if rag_context else ""
+        business_context = state.get("extracted_params", {}).get("_business_context", "")
+        business_section = (
+            f"\nRecorded business data (latest ledger periods):\n{business_context}\n"
+            if isinstance(business_context, str) and business_context.strip()
+            else ""
+        )
 
         prompt = (
             f"User question: {state.get('user_query', '')}\n"
             f"Computed result (JSON-like): {state.get('tool_result', {})}\n"
+            f"{business_section}"
             f"{context_section}"
             f"Validation notes: {state.get('validation_notes', [])}\n\n"
             "Write a concise, plain-language answer for a business owner. "
@@ -419,7 +463,8 @@ def make_generate_response(llm_router: LLMRouter | None):
             "If a question is unrelated to business finance, politely decline and redirect "
             "the user to ask a financial question. "
             "Never fabricate financial figures. If data is missing, ask for it specifically. "
-            "Be concise, accurate, and professional."
+            "Be concise, accurate, and professional. Format every monetary amount in Indian "
+            "Rupees using ₹; never use the $ symbol or USD labels."
         )
         try:
             router_result = await llm_router.complete(
@@ -428,7 +473,9 @@ def make_generate_response(llm_router: LLMRouter | None):
                     system=system,
                 )
             )
-            text = router_result.response.text
+            text = (router_result.response.text or "").strip()
+            if not text:
+                return {"final_response": _template_response(state)}
             citations = state.get("rag_citations", [])
             if citations:
                 text += "\n\nSources: " + "; ".join(citations)

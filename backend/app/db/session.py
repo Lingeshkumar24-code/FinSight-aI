@@ -49,6 +49,15 @@ async def _ensure_sqlite_columns() -> None:
             if name not in existing:
                 await conn.execute(text(f"ALTER TABLE financial_records ADD COLUMN {name} {definition}"))
 
+        chunk_columns = {
+            row[1]
+            for row in (await conn.execute(text("PRAGMA table_info(document_chunks)"))).fetchall()
+        }
+        if "source_location" not in chunk_columns:
+            await conn.execute(
+                text("ALTER TABLE document_chunks ADD COLUMN source_location TEXT DEFAULT ''")
+            )
+
 
 async def init_models() -> None:
     async with engine.begin() as conn:

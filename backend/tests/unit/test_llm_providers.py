@@ -112,3 +112,26 @@ async def test_ollama_provider_raises_on_connection_error():
     provider = OllamaProvider(base_url="http://localhost:11434")
     with pytest.raises(ProviderError):
         await provider.complete(CompletionRequest(prompt="hello"))
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_openrouter_provider_treats_null_content_as_failure():
+    # Some free models answer with null content (reasoning-only responses).
+    # The router must fail over instead of shipping an empty answer.
+    respx.post("https://openrouter.ai/api/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": None}}]})
+    )
+    provider = OpenRouterProvider(api_key="fake-key")
+    with pytest.raises(ProviderError):
+        await provider.complete(CompletionRequest(prompt="Summarise my cash flow"))
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_openai_provider_treats_null_content_as_failure():
+    respx.post("https://api.openai.com/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": None}}]})
+    )
+    provider = OpenAIProvider(api_key="fake-key")
+    with pytest.raises(ProviderError):
+        await provider.complete(CompletionRequest(prompt="Summarise my cash flow"))

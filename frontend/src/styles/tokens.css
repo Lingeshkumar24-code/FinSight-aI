@@ -252,10 +252,29 @@ a:hover {
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.55;
   cursor: not-allowed;
   box-shadow: none;
+  transform: none !important;
 }
+
+/* ---- Danger / Destructive Button ---- */
+.btn-danger {
+  background: #FEE2E2;
+  color: #B91C1C;
+  border-color: #FECACA;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #B91C1C;
+  color: #FFFFFF;
+  border-color: #B91C1C;
+  box-shadow: 0 4px 14px rgba(185, 28, 28, 0.25);
+}
+
+/* ---- Size Variants ---- */
+.btn-sm { padding: 6px 14px; font-size: 12.5px; }
+.btn-lg { padding: 12px 28px; font-size: 14.5px; }
+.btn-icon { padding: 8px; border-radius: 6px; }
 
 /* ============================================================
    Inputs & Forms
@@ -275,7 +294,7 @@ input, textarea, select {
 input:focus, textarea:focus, select:focus {
   outline: none;
   border-color: #0A0A0A;
-  box-shadow: 0 0 0 2px rgba(10, 10, 10, 0.1);
+  box-shadow: 0 0 0 3px rgba(10, 10, 10, 0.08);
 }
 
 input::placeholder, textarea::placeholder {

@@ -1,7 +1,7 @@
 // Base path for every API call. Vite's dev server proxies `/api` to the
 // backend, so every call is resolved relative to the served origin and
 // forwarded to the backend — no hardcoded host/port the browser must reach.
-const API_PREFIX = "/api/v1";
+const API_PREFIX = (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(/\/$/, "");
 
 export class ApiError extends Error {
   status: number;
@@ -41,7 +41,8 @@ async function request<TResponse>(
     headers.set("Authorization", `Bearer ${authToken}`);
   }
 
-  const resp = await fetch(`${API_PREFIX}/${path}`.replace("//", "/"), { ...options, headers });
+  const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+  const resp = await fetch(`${API_PREFIX}/${cleanPath}`, { ...options, headers });
 
   if (!resp.ok) {
     let detail = resp.statusText;
@@ -222,6 +223,58 @@ export interface WatchlistItem {
   symbol: string;
   threshold_pct: number;
   enabled: boolean;
+}
+
+export interface MarketQuote {
+  symbol: string;
+  name: string;
+  exchange: string;
+  currency: string;
+  price: number | null;
+  change: number | null;
+  percent_change: number | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  previous_close: number | null;
+  volume: number | null;
+  is_market_open: boolean | null;
+  updated_at: string | null;
+}
+
+export interface MarketSearchResult {
+  symbol: string;
+  name: string;
+  exchange: string;
+  currency: string;
+  instrument_type: string;
+  country: string;
+}
+
+export interface InvestmentOutlook {
+  symbol: string;
+  investment: number;
+  horizon_months: number;
+  horizon_days: number;
+  annualized_return_pct: number;
+  annualized_volatility_pct: number;
+  sharpe_like: number | null;
+  expected_value: number;
+  expected_profit: number;
+  expected_profit_pct: number;
+  best_case_value: number;
+  best_case_profit: number;
+  worst_case_value: number;
+  worst_case_profit: number;
+  var_95_value: number;
+  var_95_loss: number;
+  probability_of_loss_pct: number;
+  max_drawdown_pct: number;
+  observations: number;
+  notes: string[];
+  as_of: string;
+  latest_close: number | null;
+  alert: AlertItem | null;
 }
 
 export interface PortfolioHoldingOut {
@@ -611,6 +664,31 @@ export const api = {
       method: "DELETE",
     }),
 
+  searchMarket: (query: string) =>
+    request<MarketSearchResult[]>(`/market/search?q=${encodeURIComponent(query)}`),
+
+  getMarketUsage: () =>
+    request<{
+      current_usage: number | null;
+      plan_limit: number | null;
+      daily_usage: number | null;
+      plan_daily_limit: number | null;
+      plan_category: string;
+    } | null>("/market/usage"),
+
+  getInvestmentOutlook: (payload: {
+    symbol: string;
+    amount: number;
+    horizon_months: number;
+    cash_available?: number | null;
+    monthly_net_income?: number | null;
+    notify?: boolean;
+  }) =>
+    request<InvestmentOutlook>("/market/outlook", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   listPortfolios: () => request<Portfolio[]>("/trading/portfolios"),
 
   createPortfolio: (name: string, initialCash = 100000) =>
@@ -878,6 +956,12 @@ export const api = {
   dismissAlert: (alertId: string) =>
     request<{ status: string; alert_id: string }>(`/alerts/${alertId}`, {
       method: "DELETE",
+    }),
+
+  submitFinancialRecord: (payload: Record<string, number | string>) =>
+    request<Record<string, unknown>>("/financials/records", {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 };
 

@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 
 from app.api.routes import (
     advisor,
@@ -16,6 +17,7 @@ from app.api.routes import (
     financials,
     fraud,
     market,
+    market_outlook,
     money,
     records,
     reports,
@@ -27,9 +29,17 @@ from app.config import get_settings
 from app.core.logging import configure_logging
 from app.db.seed import ensure_demo_data
 from app.db.session import AsyncSessionLocal, init_models
+from app.db.models import Document, DocumentChunkRow
+from app.db.tenant import demo_business_id
 from app.llm.factory import build_llm_router
 from app.rag.vectorstore import InMemoryVectorStore
-from app.services.market_data import DemoMarketDataProvider, MarketDataService, YFinanceProvider
+from app.rag.vectorstore import DocumentChunk
+from app.services.market_data import (
+    DemoMarketDataProvider,
+    MarketDataService,
+    YahooChartProvider,
+    YFinanceProvider,
+)
 
 
 async def _periodic_n8n_monitor_task(settings):
@@ -41,7 +51,7 @@ async def _periodic_n8n_monitor_task(settings):
     await asyncio.sleep(5)  # brief initial delay
     while True:
         try:
-            await alerts.evaluate_and_dispatch_alerts("demo-business-001", settings)
+            await alerts.evaluate_and_dispatch_alerts(demo_business_id(), settings)
         except Exception:
             pass
         await asyncio.sleep(120)  # runs every 2 minutes
@@ -56,11 +66,36 @@ async def lifespan(app: FastAPI):
     # production (same VectorStore interface — see app/rag/vectorstore.py).
     app.state.vector_store = InMemoryVectorStore()
     app.state.llm_router = build_llm_router(settings)
-    app.state.market_service = MarketDataService(YFinanceProvider(), DemoMarketDataProvider())
+    app.state.market_service = MarketDataService(
+        YahooChartProvider(), YFinanceProvider(), DemoMarketDataProvider()
+    )
 
     await init_models()
     async with AsyncSessionLocal() as session:
         await ensure_demo_data(session)
+        # Rehydrate the local index from persisted chunks after a restart.
+        # Without this, an upload would appear to succeed but disappear from
+        # RAG after the process was recycled.
+        rows = (await session.execute(
+            select(DocumentChunkRow, Document)
+            .join(Document, Document.id == DocumentChunkRow.document_id)
+            .where(Document.status == "processed")
+        )).all()
+        app.state.vector_store.upsert([
+            DocumentChunk(
+                id=chunk.id,
+                text=chunk.text,
+                source=document.filename,
+                metadata={
+                    "business_id": document.business_id,
+                    "document_id": document.id,
+                    "filename": document.filename,
+                    "chunk_index": chunk.chunk_index,
+                    "source_location": chunk.source_location,
+                },
+            )
+            for chunk, document in rows
+        ])
 
     monitor_task = asyncio.create_task(_periodic_n8n_monitor_task(settings))
 
@@ -98,6 +133,7 @@ def create_app() -> FastAPI:
     app.include_router(advisor.router, prefix=prefix)
     app.include_router(documents.router, prefix=prefix)
     app.include_router(market.router, prefix=prefix)
+    app.include_router(market_outlook.router, prefix=prefix)
     app.include_router(trading.router, prefix=prefix)
     app.include_router(money.router, prefix=prefix)
     app.include_router(fraud.router, prefix=prefix)
@@ -109,6 +145,7 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["health"])
     def health() -> dict:
         return {"status": "ok", "service": settings.APP_NAME}
+
 
     return app
 

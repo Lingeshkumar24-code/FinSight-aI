@@ -14,7 +14,12 @@ from fastapi import Request
 from app.llm.router import LLMRouter
 from app.rag.retriever import Retriever
 from app.rag.vectorstore import VectorStore
-from app.services.market_data import DemoMarketDataProvider, MarketDataService, YFinanceProvider
+from app.services.market_data import (
+    DemoMarketDataProvider,
+    MarketDataService,
+    YahooChartProvider,
+    YFinanceProvider,
+)
 
 
 def get_vector_store(request: Request) -> VectorStore:
@@ -32,6 +37,8 @@ def get_llm_router(request: Request) -> LLMRouter | None:
 def get_market_service(request: Request) -> MarketDataService:
     service = getattr(request.app.state, "market_service", None)
     if service is None:
-        service = MarketDataService(YFinanceProvider(), DemoMarketDataProvider())
+        service = MarketDataService(
+            YahooChartProvider(), YFinanceProvider(), DemoMarketDataProvider()
+        )
         request.app.state.market_service = service
     return service

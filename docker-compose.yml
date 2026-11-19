@@ -75,7 +75,11 @@ services:
       - WEBHOOK_URL=http://localhost:5678/
       - GENERIC_TIMEZONE=UTC
       - FINSIGHT_API_BASE_URL=http://backend:8000/api/v1
+      - FINSIGHT_SERVICE_TOKEN=${FINSIGHT_SERVICE_TOKEN:-}
       - N8N_SHARED_SECRET=${N8N_SHARED_SECRET:-finsight-n8n-secret}
+      # Workflow HTTP nodes read their URL/token/secret from $env, which
+      # n8n blocks inside expressions unless this is disabled.
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     volumes:
       - finsight_n8n_data:/home/node/.n8n
       - ./infra/n8n:/backup/workflows:ro

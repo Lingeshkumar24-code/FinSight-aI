@@ -1,3 +1,6 @@
+import os
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./finsight-test.db"
+
 import pytest
 from fastapi.testclient import TestClient
 

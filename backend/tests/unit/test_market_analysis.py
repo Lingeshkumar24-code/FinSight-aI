@@ -43,3 +43,73 @@ def test_prediction_rejects_short_history_and_bad_horizon() -> None:
         assert "horizon_days" in str(error)
     else:
         raise AssertionError("unsupported horizon should be rejected")
+
+
+import httpx
+import respx
+
+from app.services.market_data import (
+    DemoMarketDataProvider,
+    MarketDataService,
+    YahooChartProvider,
+)
+
+
+@respx.mock
+def test_yahoo_chart_provider_parses_daily_bars():
+    payload = {
+        "chart": {
+            "result": [
+                {
+                    "meta": {"currency": "INR", "exchangeName": "NSI"},
+                    "timestamp": [1763000000, 1763086400],
+                    "indicators": {
+                        "quote": [
+                            {
+                                "open": [2100.0, 2110.5],
+                                "high": [2125.0, 2130.0],
+                                "low": [2095.0, 2105.0],
+                                "close": [2118.4, 2120.94],
+                                "volume": [1200000, 1300000],
+                            }
+                        ]
+                    },
+                }
+            ],
+            "error": None,
+        }
+    }
+    respx.get(url__startswith="https://query1.finance.yahoo.com/v8/finance/chart/TCS.NS").mock(
+        return_value=httpx.Response(200, json=payload)
+    )
+
+    bars = YahooChartProvider().get_history("TCS.NS", days=30)
+
+    assert [bar.close for bar in bars] == [2118.4, 2120.94]
+    assert bars[0].date < bars[-1].date
+    assert all(bar.close > 0 for bar in bars)
+
+
+class _FailingProvider:
+    name = "broken"
+    data_status = "DEMO"
+
+    def get_history(self, symbol: str, days: int = 400):
+        raise ValueError("provider unavailable")
+
+
+@respx.mock
+def test_market_data_service_falls_through_to_demo_when_live_providers_fail():
+    respx.get(url__startswith="https://query1.finance.yahoo.com").mock(
+        side_effect=httpx.ConnectError("blocked")
+    )
+    service = MarketDataService(
+        YahooChartProvider(), _FailingProvider(), DemoMarketDataProvider()
+    )
+
+    bars, source, status = service.fetch("TEST.NS", 60)
+
+    assert len(bars) == 60
+    assert source == "demo"
+    assert status == "DEMO"
+

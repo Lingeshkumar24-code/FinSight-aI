@@ -26,11 +26,12 @@
       "name": "Manual Monitoring Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
+      "webhookId": "5d2c9a71-6b3e-4c8a-8f21-7e4b1c9d3a52",
       "position": [0, 200]
     },
     {
       "parameters": {
-        "url": "={{$env.FINSIGHT_API_BASE_URL || 'http://backend:8000/api/v1'}}/financials/budget-variance",
+        "url": "={{$env.FINSIGHT_API_BASE_URL || 'http://127.0.0.1:8000/api/v1'}}/financials/budget-variance",
         "method": "POST",
         "sendHeaders": true,
         "headerParameters": {
@@ -50,7 +51,7 @@
     },
     {
       "parameters": {
-        "url": "={{$env.FINSIGHT_API_BASE_URL || 'http://backend:8000/api/v1'}}/financials/risk",
+        "url": "={{$env.FINSIGHT_API_BASE_URL || 'http://127.0.0.1:8000/api/v1'}}/financials/risk",
         "method": "POST",
         "sendHeaders": true,
         "headerParameters": {
@@ -97,7 +98,7 @@
     },
     {
       "parameters": {
-        "url": "={{$env.FINSIGHT_API_BASE_URL || 'http://backend:8000/api/v1'}}/alerts/webhook",
+        "url": "={{$env.FINSIGHT_API_BASE_URL || 'http://127.0.0.1:8000/api/v1'}}/alerts/webhook",
         "method": "POST",
         "sendHeaders": true,
         "headerParameters": {
@@ -107,8 +108,9 @@
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"business_id\": \"demo-business-001\",\n  \"title\": \"🚨 n8n Alert: Budget Overspend Detected in \" + $node[\"Evaluate Budget Variance\"].json.breaches.join(', '),\n  \"message\": \"Automated scheduled scan identified budget breaches. Total actual spend was $\" + $node[\"Evaluate Budget Variance\"].json.total_actual.toLocaleString() + \" vs $\" + $node[\"Evaluate Budget Variance\"].json.total_budgeted.toLocaleString() + \" budgeted.\",\n  \"severity\": \"critical\",\n  \"source\": \"n8n_automation\"\n}"
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ business_id: 'demo-business-001', title: 'n8n Alert: Budget Overspend Detected in ' + $node['Evaluate Budget Variance'].json.breaches.join(', '), message: 'Automated scheduled scan identified budget breaches. Total actual spend was ₹' + Number($node['Evaluate Budget Variance'].json.total_actual).toLocaleString('en-IN') + ' vs ₹' + Number($node['Evaluate Budget Variance'].json.total_budgeted).toLocaleString('en-IN') + ' budgeted. Overall risk: ' + ($node['Evaluate Risk Detection'].json.overall_level || 'unknown') + '.', severity: 'critical', source: 'n8n_automation' }) }}"
       },
       "name": "Dispatch Alert to FinSight API",
       "type": "n8n-nodes-base.httpRequest",

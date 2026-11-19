@@ -59,3 +59,25 @@ def test_retriever_returns_empty_context_for_unrelated_query():
 
     assert result.combined_text == ""
     assert result.citations == []
+
+
+def test_retriever_applies_tenant_metadata_filter():
+    store = InMemoryVectorStore()
+    store.upsert([
+        *chunk_document(
+            "Acme revenue was 100.",
+            source="acme.xlsx",
+            metadata={"business_id": "acme"},
+        ),
+        *chunk_document(
+            "OtherCo revenue was 900.",
+            source="other.xlsx",
+            metadata={"business_id": "other"},
+        ),
+    ])
+
+    result = Retriever(store, metadata_filter={"business_id": "acme"}).retrieve("revenue")
+
+    assert "Acme" in result.combined_text
+    assert "OtherCo" not in result.combined_text
+    assert all("other.xlsx" not in citation for citation in result.citations)

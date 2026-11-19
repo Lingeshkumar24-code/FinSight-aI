@@ -17,8 +17,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from app.config import get_settings
 
 
 class Base(DeclarativeBase):
@@ -33,13 +34,16 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+DB_UUID = Uuid(as_uuid=False) if get_settings().DATABASE_URL.startswith("postgresql") else String
+
+
 class Business(Base):
     __tablename__ = "businesses"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    id: Mapped[str] = mapped_column(DB_UUID, primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(String, nullable=False)
     industry: Mapped[str] = mapped_column(String, default="")
-    currency: Mapped[str] = mapped_column(String, default="USD")
+    currency: Mapped[str] = mapped_column(String, default="INR")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     documents: Mapped[list["Document"]] = relationship(back_populates="business")
@@ -50,8 +54,8 @@ class Business(Base):
 class Document(Base):
     __tablename__ = "documents"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    business_id: Mapped[str] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    id: Mapped[str] = mapped_column(DB_UUID, primary_key=True, default=_uuid)
+    business_id: Mapped[str] = mapped_column(DB_UUID, ForeignKey("businesses.id"), nullable=False)
     filename: Mapped[str] = mapped_column(String, nullable=False)
     storage_path: Mapped[str] = mapped_column(String, default="")
     status: Mapped[str] = mapped_column(String, default="uploaded")  # uploaded|processed|failed
@@ -64,12 +68,16 @@ class Document(Base):
 class DocumentChunkRow(Base):
     __tablename__ = "document_chunks"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), nullable=False)
+    id: Mapped[str] = mapped_column(DB_UUID, primary_key=True, default=_uuid)
+    document_id: Mapped[str] = mapped_column(DB_UUID, ForeignKey("documents.id"), nullable=False)
     chunk_index: Mapped[int] = mapped_column(default=0)
     text: Mapped[str] = mapped_column(Text, nullable=False)
+    source_location: Mapped[str] = mapped_column(String, default="")
     # JSON-encoded float list in SQLite; native `vector` type in Postgres (see schema.sql)
-    embedding: Mapped[str] = mapped_column(Text, default="")
+    # Embeddings are optional in the current local/bag-of-words index. Keep
+    # this NULL on Postgres until a real pgvector embedding is generated;
+    # inserting an empty string into a vector column is invalid.
+    embedding: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
 
     document: Mapped["Document"] = relationship(back_populates="chunks")
 
@@ -79,8 +87,8 @@ class FinancialRecord(Base):
 
     __tablename__ = "financial_records"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    business_id: Mapped[str] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    id: Mapped[str] = mapped_column(DB_UUID, primary_key=True, default=_uuid)
+    business_id: Mapped[str] = mapped_column(DB_UUID, ForeignKey("businesses.id"), nullable=False)
     period: Mapped[str] = mapped_column(String, nullable=False)
     revenue: Mapped[float] = mapped_column(Float, default=0.0)
     cogs: Mapped[float] = mapped_column(Float, default=0.0)
@@ -120,8 +128,8 @@ class ChatMessage(Base):
 
     __tablename__ = "chat_messages"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    business_id: Mapped[str] = mapped_column(ForeignKey("businesses.id"), nullable=False)
+    id: Mapped[str] = mapped_column(DB_UUID, primary_key=True, default=_uuid)
+    business_id: Mapped[str] = mapped_column(DB_UUID, ForeignKey("businesses.id"), nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)  # user|assistant
     content: Mapped[str] = mapped_column(Text, nullable=False)
     intent: Mapped[str] = mapped_column(String, default="")
@@ -133,7 +141,7 @@ class ChatMessage(Base):
 class Report(Base):
     __tablename__ = "reports"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=_uuid)
     business_id: Mapped[str] = mapped_column(ForeignKey("businesses.id"), nullable=False)
     title: Mapped[str] = mapped_column(String, nullable=False)
     period: Mapped[str] = mapped_column(String, default="")

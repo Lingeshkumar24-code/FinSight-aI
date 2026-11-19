@@ -46,10 +46,16 @@ class OpenRouterProvider(LLMProvider):
                 )
             resp.raise_for_status()
             data = resp.json()
-            text = data["choices"][0]["message"]["content"]
+            text = data["choices"][0]["message"].get("content")
             usage = data.get("usage", {})
         except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
             raise ProviderError(f"OpenRouter provider failed: {exc}") from exc
+
+        if not isinstance(text, str) or not text.strip():
+            # Some free models answer with null content (e.g. only a
+            # reasoning trace). Treat it as a provider failure so the
+            # router fails over instead of shipping an empty answer.
+            raise ProviderError("OpenRouter returned an empty completion")
 
         latency_ms = (time.perf_counter() - started) * 1000
         return CompletionResponse(

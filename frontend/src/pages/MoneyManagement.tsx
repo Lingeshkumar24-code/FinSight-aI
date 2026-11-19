@@ -226,14 +226,14 @@ export function MoneyManagement() {
 
       {error && <div className="page-state is-error"><p className="error-text">{error}</p></div>}
 
-      <div className="tabs" role="tablist">
+      <div className="tab-bar" role="tablist">
         {TABS.map((item) => (
           <button
             key={item.id}
             type="button"
             role="tab"
             aria-selected={tab === item.id}
-            className={`tab-button ${tab === item.id ? "is-active" : ""}`}
+            className={`tab-btn ${tab === item.id ? "is-active" : ""}`}
             onClick={() => setTab(item.id)}
           >
             {item.label}

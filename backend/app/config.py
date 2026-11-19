@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "dev-secret-change-me"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60 * 24
+    ALLOW_DEMO_AUTH: bool = True
 
     # --- Database (Supabase Postgres in prod; SQLite for local/dev/tests) ---
     DATABASE_URL: str = "sqlite+aiosqlite:///./finsight.db"
@@ -57,6 +58,22 @@ class Settings(BaseSettings):
     # --- n8n (automation layer) ---
     N8N_WEBHOOK_URL: str = "http://localhost:5678/webhook/finsight-alerts"
     N8N_SHARED_SECRET: str = "finsight-n8n-secret"
+
+    # --- Market data (Twelve Data) ---
+    TWELVEDATA_API_KEY: str = ""
+    TWELVEDATA_BASE_URL: str = "https://api.twelvedata.com"
+    # Comma-separated benchmark watchlist shown on the Market Data page. The
+    # free plan costs one credit per symbol with 8 credits/minute, so the
+    # default is five symbols: quotes + history + the usage check then cost
+    # 7 credits, leaving one spare inside the minute. Kept as a plain string
+    # because pydantic-settings would otherwise require the env value to be
+    # JSON.
+    MARKET_WATCHLIST: str = "TCS.NS,RELIANCE.NS,INFY.NS,HDFCBANK.NS,SBIN.NS"
+    MARKET_MAX_SYMBOLS: int = 6
+
+    # Upload guardrail. Large uploads are rejected before extraction so a
+    # single request cannot exhaust memory or tie up the API process.
+    MAX_UPLOAD_BYTES: int = 25 * 1024 * 1024
 
 
 @lru_cache

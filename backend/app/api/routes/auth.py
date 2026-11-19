@@ -18,16 +18,23 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.config import Settings, get_settings
 from app.core.security import TokenPayload, create_access_token, get_current_user
 from app.models.schemas import LoginRequest, LoginResponse, MeResponse
+from app.db.tenant import demo_business_id
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-_DEMO_BUSINESS_ID = "demo-business-001"
+_DEMO_BUSINESS_ID = demo_business_id()
 
 
 @router.post("/login", response_model=LoginResponse)
 def login(payload: LoginRequest, settings: Settings = Depends(get_settings)) -> LoginResponse:
     if not payload.email or not payload.password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing credentials")
+
+    if settings.ENV == "production" and not settings.ALLOW_DEMO_AUTH:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Demo authentication is disabled; configure Supabase Auth.",
+        )
 
     # Demo-only check. Replace with Supabase Auth in production.
     token = create_access_token(

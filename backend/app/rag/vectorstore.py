@@ -59,7 +59,12 @@ class VectorStore(ABC):
     def upsert(self, chunks: list[DocumentChunk]) -> None: ...
 
     @abstractmethod
-    def similarity_search(self, query: str, top_k: int = 5) -> list[ScoredChunk]: ...
+    def similarity_search(
+        self,
+        query: str,
+        top_k: int = 5,
+        metadata_filter: dict | None = None,
+    ) -> list[ScoredChunk]: ...
 
 
 class InMemoryVectorStore(VectorStore):
@@ -78,11 +83,18 @@ class InMemoryVectorStore(VectorStore):
             self._chunks[chunk.id] = chunk
             self._vectors[chunk.id] = _vectorize(chunk.text)
 
-    def similarity_search(self, query: str, top_k: int = 5) -> list[ScoredChunk]:
+    def similarity_search(
+        self,
+        query: str,
+        top_k: int = 5,
+        metadata_filter: dict | None = None,
+    ) -> list[ScoredChunk]:
         query_vec = _vectorize(query)
         scored = [
             ScoredChunk(chunk=self._chunks[cid], score=_cosine_similarity(query_vec, vec))
             for cid, vec in self._vectors.items()
+            if not metadata_filter
+            or all(self._chunks[cid].metadata.get(key) == value for key, value in metadata_filter.items())
         ]
         scored.sort(key=lambda s: s.score, reverse=True)
         return [s for s in scored if s.score > 0][:top_k]

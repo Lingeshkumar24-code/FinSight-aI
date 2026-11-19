@@ -100,17 +100,19 @@ async def indicators(
     normalized = normalize_symbol(symbol)
     bars, source, data_status = await service.history(normalized, session=session, days=400)
     analysis = TechnicalAnalysisEngine().analyze(bars)
+    existing_rows = (
+        await session.execute(
+            select(TechnicalIndicatorRow.trade_date, TechnicalIndicatorRow.indicator)
+            .where(TechnicalIndicatorRow.symbol == normalized)
+        )
+    ).all()
+    existing_keys = {(row[0], row[1]) for row in existing_rows}
+    new_rows: list[TechnicalIndicatorRow] = []
     for item in analysis:
         for point in item.values:
-            row = (await session.execute(
-                select(TechnicalIndicatorRow).where(
-                    TechnicalIndicatorRow.symbol == normalized,
-                    TechnicalIndicatorRow.trade_date == point["date"],
-                    TechnicalIndicatorRow.indicator == item.indicator,
-                )
-            )).scalars().first()
-            if row is None:
-                session.add(
+            key = (point["date"], item.indicator)
+            if key not in existing_keys:
+                new_rows.append(
                     TechnicalIndicatorRow(
                         symbol=normalized,
                         trade_date=point["date"],
@@ -119,6 +121,9 @@ async def indicators(
                         params_json="{}",
                     )
                 )
+                existing_keys.add(key)
+    if new_rows:
+        session.add_all(new_rows)
     await session.commit()
     return IndicatorsOut(
         symbol=normalized,

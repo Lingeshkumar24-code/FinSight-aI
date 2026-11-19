@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 import random
@@ -59,6 +60,10 @@ def normalize_symbol(symbol: str) -> str:
     return f"{cleaned}.NS"
 
 
+def exchange_for_symbol(symbol: str) -> str:
+    return "BSE" if symbol.upper().endswith(".BO") else "NSE"
+
+
 class YFinanceProvider(MarketDataProvider):
     name = "yfinance"
     data_status = "DELAYED"
@@ -90,6 +95,90 @@ class YFinanceProvider(MarketDataProvider):
                 )
             )
         return clean_bars(bars)
+
+
+class YahooChartProvider(MarketDataProvider):
+    """Yahoo Finance chart JSON, fetched directly.
+
+    yfinance's own request path is regularly rate-limited (HTTP 429) from
+    shared/cloud IPs while the public chart endpoint still answers with a
+    normal browser user-agent. This provider speaks that endpoint
+    directly so NSE quotes stay real instead of silently degrading to
+    demo prices.
+    """
+
+    name = "yahoo"
+    data_status = "DELAYED"
+    BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart"
+    USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    )
+
+    def __init__(self, timeout: float = 20.0) -> None:
+        self.timeout = timeout
+
+    def get_history(self, symbol: str, days: int = 400) -> list[PriceBar]:
+        import httpx
+
+        end = int(datetime.now(timezone.utc).timestamp())
+        start = end - max(days, 40) * 86_400
+        response = httpx.get(
+            f"{self.BASE_URL}/{symbol}",
+            params={
+                "period1": start,
+                "period2": end,
+                "interval": "1d",
+                "events": "div,splits",
+            },
+            headers={"User-Agent": self.USER_AGENT, "Accept": "application/json"},
+            timeout=self.timeout,
+            follow_redirects=True,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        results = ((payload.get("chart") or {}).get("result") or [])
+        if not results:
+            error = (payload.get("chart") or {}).get("error") or {}
+            raise ValueError(
+                error.get("description") or f"No historical data returned for {symbol}"
+            )
+        result = results[0]
+        timestamps = result.get("timestamp") or []
+        quote = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+        opens = quote.get("open") or []
+        highs = quote.get("high") or []
+        lows = quote.get("low") or []
+        closes = quote.get("close") or []
+        volumes = quote.get("volume") or []
+
+        bars: list[PriceBar] = []
+        for index, stamp in enumerate(timestamps):
+            close = self._pick(closes, index)
+            if close is None or not math.isfinite(close) or close <= 0:
+                continue
+            bars.append(
+                PriceBar(
+                    date=datetime.fromtimestamp(stamp, timezone.utc).date().isoformat(),
+                    open=self._pick(opens, index) or close,
+                    high=self._pick(highs, index) or close,
+                    low=self._pick(lows, index) or close,
+                    close=close,
+                    volume=self._pick(volumes, index) or 0.0,
+                )
+            )
+        if not bars:
+            raise ValueError(f"No historical data returned for {symbol}")
+        return clean_bars(bars)
+
+    @staticmethod
+    def _pick(values: list, index: int) -> float | None:
+        if index >= len(values) or values[index] is None:
+            return None
+        try:
+            return float(values[index])
+        except (TypeError, ValueError):
+            return None
 
 
 class DemoMarketDataProvider(MarketDataProvider):
@@ -136,9 +225,37 @@ def clean_bars(bars: list[PriceBar]) -> list[PriceBar]:
 
 
 class MarketDataService:
-    def __init__(self, primary: MarketDataProvider, fallback: MarketDataProvider | None = None) -> None:
+    def __init__(
+        self,
+        primary: MarketDataProvider,
+        fallback: MarketDataProvider | None = None,
+        last_resort: MarketDataProvider | None = None,
+    ) -> None:
         self.primary = primary
         self.fallback = fallback or DemoMarketDataProvider()
+        # Demo prices keep the UI usable when every live provider is down,
+        # and the response is labelled DEMO so they are never mistaken for
+        # exchange quotes.
+        self.last_resort = last_resort or DemoMarketDataProvider()
+
+    # Rows written by the demo provider are synthetic. They are never used
+    # as a cache (otherwise the page would be frozen on invented prices),
+    # and stale primary rows are refetched so "cached" still means recent.
+    DEMO_SOURCES = {"demo"}
+    MAX_CACHE_AGE_DAYS = 7
+
+    def fetch(self, symbol: str, days: int) -> tuple[list[PriceBar], str, str]:
+        """Walk primary → fallback → demo until one provider answers."""
+        last_error: Exception | None = None
+        for provider in (self.primary, self.fallback, self.last_resort):
+            try:
+                bars = provider.get_history(symbol, days=days)
+            except Exception as exc:  # noqa: BLE001 - provider-specific errors
+                last_error = exc
+                continue
+            if bars:
+                return bars, provider.name, provider.data_status
+        raise ValueError(f"No market data available for {symbol}: {last_error}")
 
     async def history(
         self,
@@ -153,6 +270,7 @@ class MarketDataService:
             rows = (await session.execute(
                 select(StockPrice)
                 .where(StockPrice.symbol == normalized)
+                .where(StockPrice.source.notin_(self.DEMO_SOURCES))
                 .order_by(StockPrice.trade_date.desc())
                 .limit(days)
             )).scalars().all()
@@ -167,20 +285,21 @@ class MarketDataService:
                 )
                 for row in reversed(rows)
             ]
+            if cached:
+                try:
+                    latest = date.fromisoformat(cached[-1].date)
+                except ValueError:
+                    cached = []
+                else:
+                    if (date.today() - latest).days > self.MAX_CACHE_AGE_DAYS:
+                        cached = []
 
         if cached:
             return cached, "cached", "CACHED"
 
-        try:
-            bars = self.primary.get_history(normalized, days=days)
-            status = self.primary.data_status
-            source = self.primary.name
-        except Exception:
-            bars = self.fallback.get_history(normalized, days=days)
-            status = self.fallback.data_status
-            source = self.fallback.name
+        bars, source, status = await asyncio.to_thread(self.fetch, normalized, days)
 
-        if session is not None and bars:
+        if session is not None and bars and source not in self.DEMO_SOURCES:
             existing_dates = {
                 row[0]
                 for row in (await session.execute(
@@ -205,7 +324,7 @@ class MarketDataService:
                 StockInstrument(
                     symbol=normalized,
                     name=SYMBOL_NAMES.get(normalized, normalized.replace(".NS", "")),
-                    exchange="NSE",
+                    exchange=exchange_for_symbol(normalized),
                     currency="INR",
                     source=source,
                     updated_at=datetime.now(timezone.utc),
@@ -221,7 +340,7 @@ def quote_from_bars(symbol: str, bars: list[PriceBar], source: str, status: str)
         return {
             "symbol": symbol,
             "name": SYMBOL_NAMES.get(symbol, symbol),
-            "exchange": "NSE",
+            "exchange": exchange_for_symbol(symbol),
             "currency": "INR",
             "source": source,
             "data_status": status,
@@ -244,7 +363,7 @@ def quote_from_bars(symbol: str, bars: list[PriceBar], source: str, status: str)
     return {
         "symbol": symbol,
         "name": SYMBOL_NAMES.get(symbol, symbol),
-        "exchange": "NSE",
+        "exchange": exchange_for_symbol(symbol),
         "currency": "INR",
         "source": source,
         "data_status": status,

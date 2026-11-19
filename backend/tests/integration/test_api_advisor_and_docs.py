@@ -62,7 +62,80 @@ def test_document_upload_rejects_unsupported_type(client, auth_headers):
         headers=auth_headers,
         files={"file": ("report.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
     )
-    assert resp.status_code == 415
+    assert resp.status_code == 422
+
+
+def test_document_upload_extracts_pdf_text(client, auth_headers):
+    import fitz
+
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_text((72, 72), "Q3 revenue was ₹125,000 and net profit was ₹24,000.")
+    pdf_bytes = document.tobytes()
+    document.close()
+
+    resp = client.post(
+        "/api/v1/documents/upload",
+        headers=auth_headers,
+        files={"file": ("financials.pdf", io.BytesIO(pdf_bytes), "application/pdf")},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["chunks_indexed"] >= 1
+
+
+def test_document_upload_extracts_xlsx_values(client, auth_headers):
+    import openpyxl
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Income Statement"
+    sheet.append(["Period", "Revenue", "Net Profit"])
+    sheet.append(["2026-Q3", 125000, 24000])
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+
+    resp = client.post(
+        "/api/v1/documents/upload",
+        headers=auth_headers,
+        files={"file": ("financials.xlsx", io.BytesIO(buffer.getvalue()), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["chunks_indexed"] >= 1
+
+
+def test_document_upload_extracts_docx_tables(client, auth_headers):
+    from docx import Document
+
+    document = Document()
+    document.add_paragraph("FY2025 financial summary")
+    table = document.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "Revenue"
+    table.cell(0, 1).text = "125000"
+    table.cell(1, 0).text = "Net profit"
+    table.cell(1, 1).text = "24000"
+    buffer = io.BytesIO()
+    document.save(buffer)
+
+    resp = client.post(
+        "/api/v1/documents/upload",
+        headers=auth_headers,
+        files={"file": ("financials.docx", io.BytesIO(buffer.getvalue()), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["chunks_indexed"] >= 1
+
+
+def test_document_upload_rejects_files_over_configured_limit(client, auth_headers, monkeypatch):
+    from app.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "MAX_UPLOAD_BYTES", 10)
+    resp = client.post(
+        "/api/v1/documents/upload",
+        headers=auth_headers,
+        files={"file": ("large.txt", io.BytesIO(b"01234567890"), "text/plain")},
+    )
+    assert resp.status_code == 413
 
 
 def test_document_upload_rejects_empty_file(client, auth_headers):

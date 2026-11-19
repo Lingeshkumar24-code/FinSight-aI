@@ -37,10 +37,13 @@ class OpenAIProvider(LLMProvider):
                 )
             resp.raise_for_status()
             data = resp.json()
-            text = data["choices"][0]["message"]["content"]
+            text = data["choices"][0]["message"].get("content")
             usage = data.get("usage", {})
         except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
             raise ProviderError(f"OpenAI provider failed: {exc}") from exc
+
+        if not isinstance(text, str) or not text.strip():
+            raise ProviderError("OpenAI returned an empty completion")
 
         latency_ms = (time.perf_counter() - started) * 1000
         return CompletionResponse(
