@@ -7,11 +7,29 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import advisor, alerts, auth, documents, financials, reports, simulator
+from app.api.routes import (
+    advisor,
+    alerts,
+    automation,
+    auth,
+    documents,
+    financials,
+    fraud,
+    market,
+    money,
+    records,
+    reports,
+    simulator,
+    trading,
+    verification,
+)
 from app.config import get_settings
 from app.core.logging import configure_logging
+from app.db.seed import ensure_demo_data
+from app.db.session import AsyncSessionLocal, init_models
 from app.llm.factory import build_llm_router
 from app.rag.vectorstore import InMemoryVectorStore
+from app.services.market_data import DemoMarketDataProvider, MarketDataService, YFinanceProvider
 
 
 async def _periodic_n8n_monitor_task(settings):
@@ -38,6 +56,11 @@ async def lifespan(app: FastAPI):
     # production (same VectorStore interface — see app/rag/vectorstore.py).
     app.state.vector_store = InMemoryVectorStore()
     app.state.llm_router = build_llm_router(settings)
+    app.state.market_service = MarketDataService(YFinanceProvider(), DemoMarketDataProvider())
+
+    await init_models()
+    async with AsyncSessionLocal() as session:
+        await ensure_demo_data(session)
 
     monitor_task = asyncio.create_task(_periodic_n8n_monitor_task(settings))
 
@@ -70,9 +93,16 @@ def create_app() -> FastAPI:
     prefix = settings.API_V1_PREFIX
     app.include_router(auth.router, prefix=prefix)
     app.include_router(financials.router, prefix=prefix)
+    app.include_router(records.router, prefix=prefix)
     app.include_router(simulator.router, prefix=prefix)
     app.include_router(advisor.router, prefix=prefix)
     app.include_router(documents.router, prefix=prefix)
+    app.include_router(market.router, prefix=prefix)
+    app.include_router(trading.router, prefix=prefix)
+    app.include_router(money.router, prefix=prefix)
+    app.include_router(fraud.router, prefix=prefix)
+    app.include_router(verification.router, prefix=prefix)
+    app.include_router(automation.router, prefix=prefix)
     app.include_router(reports.router, prefix=prefix)
     app.include_router(alerts.router, prefix=prefix)
 

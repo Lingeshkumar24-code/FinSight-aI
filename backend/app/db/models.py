@@ -17,7 +17,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -89,6 +89,27 @@ class FinancialRecord(Base):
     total_assets: Mapped[float] = mapped_column(Float, default=0.0)
     total_liabilities: Mapped[float] = mapped_column(Float, default=0.0)
     total_equity: Mapped[float] = mapped_column(Float, default=0.0)
+    period_start: Mapped[str] = mapped_column(String, default="")
+    period_end: Mapped[str] = mapped_column(String, default="")
+    cash: Mapped[float | None] = mapped_column(Float, nullable=True)
+    accounts_receivable: Mapped[float | None] = mapped_column(Float, nullable=True)
+    inventory: Mapped[float | None] = mapped_column(Float, nullable=True)
+    other_current_assets: Mapped[float | None] = mapped_column(Float, nullable=True)
+    total_current_assets: Mapped[float | None] = mapped_column(Float, nullable=True)
+    total_current_liabilities: Mapped[float | None] = mapped_column(Float, nullable=True)
+    short_term_debt: Mapped[float | None] = mapped_column(Float, nullable=True)
+    long_term_debt: Mapped[float | None] = mapped_column(Float, nullable=True)
+    interest_expense: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ebit: Mapped[float | None] = mapped_column(Float, nullable=True)
+    operating_cash_flow: Mapped[float | None] = mapped_column(Float, nullable=True)
+    investing_cash_flow: Mapped[float | None] = mapped_column(Float, nullable=True)
+    financing_cash_flow: Mapped[float | None] = mapped_column(Float, nullable=True)
+    opening_cash: Mapped[float | None] = mapped_column(Float, nullable=True)
+    closing_cash: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String, default="manual")
+    source_document_id: Mapped[str] = mapped_column(String, default="")
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str] = mapped_column(String, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     business: Mapped["Business"] = relationship(back_populates="financial_records")

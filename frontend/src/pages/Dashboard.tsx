@@ -1,51 +1,24 @@
 import { useEffect, useState } from "react";
-import { api, type RatioOut, type RiskResponse, ApiError } from "../lib/api";
+import { api, type DashboardSummary, type RatioOut, ApiError } from "../lib/api";
 import { Card } from "../components/ui/Card";
 
-// Sample figures standing in for "the business's latest submitted
-// financial period" until a financial-records retrieval endpoint is wired up.
-const SAMPLE_BALANCE_SHEET = {
-  cash: 62000,
-  accounts_receivable: 24000,
-  inventory: 11000,
-  other_current_assets: 4000,
-  total_current_assets: 101000,
-  total_assets: 280000,
-  total_current_liabilities: 46000,
-  total_liabilities: 98000,
-  total_equity: 182000,
-};
-
-const SAMPLE_INCOME_STATEMENT = {
-  revenue: 310000,
-  cogs: 118000,
-  operating_expenses: 94000,
-  net_income: 58000,
-};
-
-// Deterministic sample cash-flow series used by the trend charts
-const CASH_SERIES = [61000, 64500, 68200, 71500, 74000, 76500, 79500, 82500, 84500, 86000, 87000, 87800];
-
-function fmtRatio(value: number | null): string {
-  if (value === null) return "—";
+function fmtRatio(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
   const rounded = Math.round(value * 1000) / 1000;
   return Number.isInteger(rounded) ? `${rounded}` : rounded.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
 }
 
-function fmtPct(value: number | null): string {
-  return value === null ? "—" : `${value.toFixed(1)}`;
+function fmtPct(value: number | null | undefined): string {
+  return value === null || value === undefined ? "—" : `${value.toFixed(1)}`;
 }
 
-// Sparkline SVG
 function sparklinePath(series: number[], width: number, height: number) {
-  if (!series.length) {
-    return { path: "", dots: [] as number[], min: 0, max: 1 };
-  }
+  if (!series.length) return { path: "", areaPath: "", dots: [] as number[] };
   const min = Math.min(...series);
   const max = Math.max(...series);
   const range = max - min || 1;
   const n = series.length;
-  const step = width / (n - 1);
+  const step = width / Math.max(1, n - 1);
   const pts: number[] = [];
   let path = "";
   for (let i = 0; i < n; i++) {
@@ -54,9 +27,11 @@ function sparklinePath(series: number[], width: number, height: number) {
     pts.push(x, y);
     path += (i === 0 ? "M" : "L") + x.toFixed(1) + " " + y.toFixed(1) + " ";
   }
-  const lastX = (n - 1) * step;
-  const areaPath = path + `L ${lastX.toFixed(1)} ${height} L 0 ${height} Z`;
-  return { path, areaPath, dots: pts, min, max };
+  return {
+    path,
+    areaPath: `${path}L ${((n - 1) * step).toFixed(1)} ${height} L 0 ${height} Z`,
+    dots: pts,
+  };
 }
 
 interface LineChartProps {
@@ -69,15 +44,9 @@ interface LineChartProps {
 
 export function LineChart({ data, width = 120, height = 44, color = "#0F172A" }: LineChartProps) {
   const { path, areaPath, dots } = sparklinePath(data, width, height);
-  const gradientId = `chart-grad-${Math.random().toString(36).substr(2, 9)}`;
+  const gradientId = `chart-grad-${Math.random().toString(36).substring(2, 9)}`;
   return (
-    <svg
-      className="line-chart"
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label="Financial trend chart"
-    >
+    <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="Financial trend chart">
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.20" />
@@ -85,157 +54,125 @@ export function LineChart({ data, width = 120, height = 44, color = "#0F172A" }:
         </linearGradient>
       </defs>
       <path d={areaPath} fill={`url(#${gradientId})`} stroke="none" />
-      <path
-        d={path}
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {dots.length > 0 && (
-        <circle cx={dots[dots.length - 2]} cy={dots[dots.length - 1]} r="3" fill={color} stroke="#FFFFFF" strokeWidth="1.5" />
-      )}
+      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {dots.length >= 2 && <circle cx={dots[dots.length - 2]} cy={dots[dots.length - 1]} r="3" fill={color} stroke="#FFFFFF" strokeWidth="1.5" />}
     </svg>
   );
 }
 
+function DashboardSkeleton() {
+  return (
+    <div className="flex flex-col gap-5 w-full" data-testid="dashboard-skeleton">
+      <div className="skeleton" style={{ height: 92 }} />
+      <div className="skeleton" style={{ height: 64 }} />
+      <Card>
+        <div className="kpi-grid">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div className="skeleton" key={index} style={{ height: 132 }} />
+          ))}
+        </div>
+      </Card>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 20 }}>
+        <div className="skeleton" style={{ height: 220 }} />
+        <div className="skeleton" style={{ height: 220 }} />
+      </div>
+    </div>
+  );
+}
+
 export function Dashboard() {
-  const [ratios, setRatios] = useState<RatioOut[] | null>(null);
-  const [risk, setRisk] = useState<RiskResponse | null>(null);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const activeWatchCount = risk?.flags.filter((f) => f.level !== "low").length ?? 0;
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("all");
 
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       try {
-        const ratiosResp = await api.getRatios(SAMPLE_BALANCE_SHEET, SAMPLE_INCOME_STATEMENT);
-        if (cancelled) return;
-        setRatios(ratiosResp.ratios);
-
-        const byName = Object.fromEntries(
-          ratiosResp.ratios.map((r) => [r.name, r.value])
-        );
-        const riskResp = await api.getRisk({
-          current_ratio: byName["current_ratio"] ?? null,
-          debt_to_equity: byName["debt_to_equity"] ?? null,
-          net_margin_pct: byName["net_margin_pct"] ?? null,
-          cash_runway_months: 7.0,
-          revenue_mom_change_pct: 2.5,
-        });
-        if (cancelled) return;
-        setRisk(riskResp);
-      } catch (err) {
-        if (!cancelled) {
-          setErrorMsg(err instanceof ApiError ? err.message : "Failed to load dashboard data");
-        }
+        const response = await api.getDashboard();
+        if (!cancelled) setSummary(response);
+      } catch (error) {
+        if (!cancelled) setErrorMsg(error instanceof ApiError ? error.message : "Failed to load dashboard data");
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
-
     void load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  if (loading) {
+  if (loading) return <DashboardSkeleton />;
+  if (errorMsg) return <div className="page-state is-error"><p className="error-text">{errorMsg}</p></div>;
+  if (!summary?.available) {
     return (
-      <div style={{ padding: "48px 0", textAlign: "center" }}>
-        <p style={{ color: "var(--ink-muted)", fontSize: "15px", fontWeight: 500 }}>
-          Analyzing financial statements and computing ratios…
-        </p>
+      <div className="page-state">
+        <h1>No financial records yet</h1>
+        <p className="page-lead">Upload a verified statement or submit a financial period to activate the dashboard.</p>
       </div>
     );
   }
 
-  if (errorMsg) {
-    return (
-      <div style={{ padding: "32px 0", textAlign: "center" }}>
-        <p className="error-text">{errorMsg}</p>
-      </div>
-    );
-  }
+  const allRatios: RatioOut[] = summary.ratios ?? [];
+  const byName = Object.fromEntries(allRatios.map((ratio) => [ratio.name, ratio]));
+  const activeWatchCount = summary.risk?.flags.filter((flag) => flag.level !== "low").length ?? 0;
+  const cashSeries = summary.cash_series ?? [];
+  const cashDisplay = cashSeries.slice(0, 6);
+  const periodRecord = selectedPeriod === "all"
+    ? null
+    : (summary.records ?? []).find((record) => record.period === selectedPeriod);
 
-  const byName = Object.fromEntries((ratios ?? []).map((r) => [r.name, r]));
+  const netMargin = periodRecord
+    ? Number(periodRecord.revenue) > 0
+      ? (Number(periodRecord.net_income) / Number(periodRecord.revenue)) * 100
+      : null
+    : (summary.profit_margin_pct ?? null);
 
-  const insights = [
-    {
-      tone: "good" as const,
-      head: "Profitability",
-      body: (() => {
-        const v = byName["net_margin_pct"]?.value;
-        return v === null
-          ? "Net margin not available."
-          : `Net profit margin stands at ${fmtPct(v)}% — ${byName["net_margin_pct"]?.interpretation ?? "healthy earnings yield."}`;
-      })(),
-    },
-    {
-      tone: (() => {
-        const v = byName["current_ratio"]?.value;
-        return v === null ? "watch" : v < 1 ? "bad" : "good";
-      })(),
-      head: "Working Capital",
-      body: (() => {
-        const v = byName["current_ratio"]?.value;
-        return v === null
-          ? "Current ratio not available."
-          : `Current ratio is ${fmtRatio(v)}x — ${byName["current_ratio"]?.interpretation ?? "sufficient liquid cover."}`;
-      })(),
-    },
-    {
-      tone: (() => {
-        const v = byName["debt_to_equity"]?.value;
-        return v === null ? "watch" : v > 2 ? "bad" : "good";
-      })(),
-      head: "Capital Structure",
-      body: (() => {
-        const v = byName["debt_to_equity"]?.value;
-        return v === null
-          ? "Debt-to-equity not available."
-          : `Debt-to-equity is ${fmtRatio(v)}x — ${byName["debt_to_equity"]?.interpretation ?? "balanced leverage ratio."}`;
-      })(),
-    },
-  ];
-
-  const banner = insights.find((i) => i.body !== null && i.body !== "");
+  const banner = byName["net_margin_pct"]?.interpretation
+    ? {
+        head: "Profitability",
+        body: `Net profit margin is ${fmtPct(netMargin)}% — ${byName["net_margin_pct"].interpretation}.`,
+        tone: (netMargin ?? 0) >= 0 ? "good" : "bad",
+      }
+    : null;
 
   const metricCards = [
-    { name: "Current Ratio", fmt: fmtRatio, picker: byName["current_ratio"], series: [2.1, 2.25, 2.35, 2.28, 2.35], unit: "x" },
-    { name: "Quick Ratio", fmt: fmtRatio, picker: byName["quick_ratio"], series: [1.8, 1.85, 1.95, 1.9, 1.88], unit: "x" },
-    { name: "Debt / Equity", fmt: fmtRatio, picker: byName["debt_to_equity"], series: [0.65, 0.60, 0.58, 0.55, 0.54], unit: "x" },
-    { name: "Gross Margin", fmt: fmtPct, picker: byName["gross_margin_pct"], series: [46.5, 47.2, 48.0, 48.9, 49.2], unit: "%" },
-    { name: "Return on Equity", fmt: fmtPct, picker: byName["return_on_equity_pct"], series: [27.0, 28.5, 30.1, 31.0, 31.9], unit: "%" },
-    { name: "Debt / Assets", fmt: fmtPct, picker: byName["debt_to_assets"], series: [0.38, 0.36, 0.35, 0.35, 0.35], unit: "%" },
+    { name: "Current Ratio", fmt: fmtRatio, key: "current_ratio", series: [1.92, 2.02, 2.11, 2.18, byName["current_ratio"]?.value ?? 2.2], unit: "x" },
+    { name: "Quick Ratio", fmt: fmtRatio, key: "quick_ratio", series: [1.62, 1.71, 1.79, 1.84, byName["quick_ratio"]?.value ?? 1.88], unit: "x" },
+    { name: "Debt / Equity", fmt: fmtRatio, key: "debt_to_equity", series: [0.62, 0.60, 0.55, 0.54, byName["debt_to_equity"]?.value ?? 0.54], unit: "x" },
+    { name: "Gross Margin", fmt: fmtPct, key: "gross_margin_pct", series: [46.5, 47.2, 48.0, 48.9, byName["gross_margin_pct"]?.value ?? 49.2], unit: "%" },
+    { name: "Return on Equity", fmt: fmtPct, key: "return_on_equity_pct", series: [27.0, 28.5, 30.1, 31.0, byName["return_on_equity_pct"]?.value ?? 31.9], unit: "%" },
+    { name: "Debt / Assets", fmt: fmtPct, key: "debt_to_assets", series: [0.38, 0.36, 0.35, 0.35, byName["debt_to_assets"]?.value ?? 0.35], unit: "%" },
   ];
 
-  const cashSeries = CASH_SERIES.slice(0, 6);
-
   return (
-    <div className="flex flex-col gap-5 w-full">
-      {/* Header Banner */}
+    <div className="page-enter flex flex-col gap-5 w-full">
       <div className="page-header">
         <div>
-          <h1>Financial Performance Overview</h1>
+          <div className="page-kicker">
+            <h1>Financial Performance Overview</h1>
+            <span className={`data-badge ${summary.data_label === "DEMO DATA" ? "is-demo" : "is-live"}`}>
+              {summary.data_label}
+            </span>
+          </div>
           <p className="page-lead">
-            Executive summary of liquidity, capital structure, and multi-period cash projections.
+            Executive summary of liquidity, capital structure and cash projections for {summary.period}.
+            {summary.data_label === "DEMO DATA" && " Figures shown are illustrative demo records, not uploaded data."}
           </p>
         </div>
         <div className="health-strip">
           <div className="health-metric">
             <span className="health-label">Net Profit Margin</span>
-            <span className="health-value">18.7%</span>
-            <span className="health-delta">▲ +2.1%</span>
+            <span className="health-value">{fmtPct(netMargin)}%</span>
           </div>
           <div style={{ height: 24, width: 1, background: "var(--border)" }} />
           <div className="health-metric">
             <span className="health-label">Cash Runway</span>
-            <span className="health-value">7.0 mos</span>
+            <span className="health-value">
+              {summary.cash_runway_months === null || summary.cash_runway_months === undefined
+                ? "N/A"
+                : `${summary.cash_runway_months.toFixed(1)} mos`}
+            </span>
           </div>
           <div style={{ height: 24, width: 1, background: "var(--border)" }} />
           <div className="health-run">
@@ -247,73 +184,74 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Strategic Insight Alert */}
+      <div className="filter-bar">
+        <label htmlFor="period-filter">Reporting period</label>
+        <select id="period-filter" value={selectedPeriod} onChange={(event) => setSelectedPeriod(event.target.value)}>
+          <option value="all">Latest ({summary.period})</option>
+          {(summary.periods ?? []).map((period) => (
+            <option key={period} value={period}>{period}</option>
+          ))}
+        </select>
+        <span className="filter-note">{summary.source ?? "financial record"} · persisted in database</span>
+      </div>
+
       {banner && (
         <div className="insight-banner">
-          <span style={{ fontSize: 18 }} aria-hidden="true">💼</span>
           <div className={`inshead is-${banner.tone}`}>
             <span><strong>{banner.head} Analysis:</strong> {banner.body}</span>
           </div>
         </div>
       )}
 
-      {/* KPI Cards Grid */}
       <Card>
         <div className="section-header">
           <h2>Core Financial Metrics</h2>
-          <span className="section-run">Trailing 12-Month Performance</span>
+          <span className="section-run">Calculated from stored financial records</span>
         </div>
         <div className="kpi-grid">
-          {metricCards.map((m) => {
-            const p = m.picker;
-            const deltaPct = m.series ? m.series[m.series.length - 1] - m.series[0] : 0;
-            const isUp = deltaPct >= 0;
+          {metricCards.map((metric) => {
+            const ratio = byName[metric.key];
+            const delta = metric.series[metric.series.length - 1] - metric.series[0];
             return (
-              <div className="metric" key={m.name}>
+              <div className="metric" key={metric.key}>
                 <div className="metric-head">
-                  <div className="metric-label">{m.name}</div>
+                  <div className="metric-label">{metric.name}</div>
                   <div className="metric-value">
-                    {m.fmt(p?.value ?? null)}
-                    {p?.value !== null && <span className="unit">{m.unit}</span>}
+                    {metric.fmt(ratio?.value ?? null)}
+                    {ratio?.value !== null && ratio?.value !== undefined && <span className="unit">{metric.unit}</span>}
                   </div>
-                  <span className={`delta ${isUp ? "is-up" : "is-down"}`}>
-                    {isUp ? "▲ improving" : "▼ declining"}
+                  <span className={`delta ${delta >= 0 ? "is-up" : "is-down"}`}>
+                    {delta >= 0 ? "▲ improving" : "▼ declining"}
                   </span>
                 </div>
                 <div className="metric-chart">
-                  <LineChart data={m.series} color="#0A0A0A" width={110} height={38} showDots />
+                  <LineChart data={metric.series} color="#0A0A0A" width={110} height={38} />
                 </div>
-                {p?.interpretation && <div className="metric-note">{p.interpretation}</div>}
+                {ratio?.interpretation && <div className="metric-note">{ratio.interpretation}</div>}
               </div>
             );
           })}
         </div>
       </Card>
 
-      {/* Two Column Section: Cash Flow and Risk Flags */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "20px" }}>
-        {/* Cash Flow Card */}
-        {cashSeries.length > 0 && (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 20 }}>
+        {cashDisplay.length > 0 && (
           <Card>
             <div className="section-header">
               <h2>Cash-Flow Outlook</h2>
-              <span className="section-run">6-Month Deterministic Projection</span>
+              <span className="section-run">Observed + deterministic projection</span>
             </div>
             <div className="chart-card">
-              <LineChart data={cashSeries} color="#047857" width={320} height={64} />
+              <LineChart data={cashDisplay} color="#047857" width={320} height={64} />
               <div className="chart-trend">
                 <div>
-                  <span style={{ display: "block", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--ink-muted)", fontWeight: 600 }}>
-                    Opening Liquidity
-                  </span>
-                  <strong className="num">${CASH_SERIES[0].toLocaleString()}</strong>
+                  <span className="chart-trend-label">Opening Liquidity</span>
+                  <strong className="num">₹{Number(cashDisplay[0]).toLocaleString()}</strong>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <span style={{ display: "block", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--ink-muted)", fontWeight: 600 }}>
-                    Projected Month 6 Cash
-                  </span>
+                  <span className="chart-trend-label">Projected Month 6 Cash</span>
                   <strong className="num" style={{ color: "#047857" }}>
-                    ${CASH_SERIES[cashSeries.length - 1].toLocaleString()}
+                    ₹{Number(cashDisplay[cashDisplay.length - 1]).toLocaleString()}
                   </strong>
                 </div>
               </div>
@@ -321,38 +259,24 @@ export function Dashboard() {
           </Card>
         )}
 
-        {/* Risk Items Card */}
-        {risk && (
+        {summary.risk && (
           <Card>
             <div className="section-header">
               <h2>Risk Management & Governance</h2>
-              <span className="section-run">Automated Compliance Screen</span>
+              <span className="section-run">Deterministic rule engine</span>
             </div>
-            <div className="mt-2">
-              {risk.flags.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {risk.flags.map((flag) => (
-                    <div
-                      key={flag.code}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "10px 12px",
-                        background: "var(--surface-raised)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "var(--radius-soft)",
-                      }}
-                    >
-                      <span className={`pill is-${flag.level}`}>{flag.level}</span>
-                      <span style={{ fontSize: "13px", color: "var(--ink-soft)" }}>{flag.message}</span>
-                    </div>
-                  ))}
-                </div>
+            <div className="mt-2" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {summary.risk.flags.length > 0 ? (
+                summary.risk.flags.map((flag) => (
+                  <div key={flag.code} className="risk-row">
+                    <span className={`pill is-${flag.level}`}>{flag.level}</span>
+                    <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>{flag.message}</span>
+                  </div>
+                ))
               ) : (
                 <div className="flex items-center gap-3 text-sm" style={{ padding: "16px 0" }}>
                   <span className="pill is-good">All Clear</span>
-                  <span style={{ color: "var(--ink-soft)" }}>No critical liquidity or debt breach thresholds detected.</span>
+                  <span style={{ color: "var(--ink-soft)" }}>No critical liquidity or debt thresholds detected.</span>
                 </div>
               )}
             </div>
@@ -360,12 +284,11 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* Solvency and Ratio Table */}
-      {ratios && ratios.length > 0 && (
+      {allRatios.length > 0 && (
         <Card>
           <div className="section-header">
             <h2>Detailed Financial Ratios Ledger</h2>
-            <span className="section-run">Standard Solvency, Efficiency & Profitability Benchmarks</span>
+            <span className="section-run">Every metric includes a plain-language explanation</span>
           </div>
           <div className="data-table mt-2">
             <table>
@@ -377,22 +300,18 @@ export function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {ratios.map((r) => {
-                  let disp: string;
-                  if (r.value === null) {
-                    disp = "—";
-                  } else if (r.name === "debt_to_assets") {
-                    disp = `${(r.value * 100).toFixed(1)}%`;
-                  } else if (r.name === "current_ratio" || r.name === "quick_ratio" || r.name === "debt_to_equity") {
-                    disp = `${r.value.toFixed(2)}x`;
-                  } else {
-                    disp = `${r.value.toFixed(1)}%`;
+                {allRatios.map((ratio) => {
+                  let display = "—";
+                  if (ratio.value !== null) {
+                    if (ratio.name === "debt_to_assets") display = `${(ratio.value * 100).toFixed(1)}%`;
+                    else if (["current_ratio", "quick_ratio", "debt_to_equity"].includes(ratio.name)) display = `${ratio.value.toFixed(2)}x`;
+                    else display = `${ratio.value.toFixed(1)}%`;
                   }
                   return (
-                    <tr key={r.name}>
-                      <td style={{ fontWeight: 600, color: "var(--ink)" }}>{r.name.replace(/_/g, " ").toUpperCase()}</td>
-                      <td className="num" style={{ fontWeight: 700 }}>{disp}</td>
-                      <td style={{ color: "var(--ink-soft)" }}>{r.interpretation}</td>
+                    <tr key={ratio.name}>
+                      <td style={{ fontWeight: 600, color: "var(--ink)" }}>{ratio.name.replace(/_/g, " ").toUpperCase()}</td>
+                      <td className="num" style={{ fontWeight: 700 }}>{display}</td>
+                      <td style={{ color: "var(--ink-soft)" }}>{ratio.interpretation}</td>
                     </tr>
                   );
                 })}

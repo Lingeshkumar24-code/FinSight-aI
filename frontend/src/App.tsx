@@ -8,6 +8,12 @@ import { AIAdvisor } from "./pages/AIAdvisor";
 import { Simulator } from "./pages/Simulator";
 import { Reports } from "./pages/Reports";
 import { Alerts } from "./pages/Alerts";
+import { MarketIntelligence } from "./pages/MarketIntelligence";
+import { PaperTrading } from "./pages/PaperTrading";
+import { MoneyManagement } from "./pages/MoneyManagement";
+import { FraudDetection } from "./pages/FraudDetection";
+import { DocumentVerification } from "./pages/DocumentVerification";
+import { Automation } from "./pages/Automation";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -30,6 +36,12 @@ function AppRoutes() {
         <Route path="/upload" element={<Upload />} />
         <Route path="/advisor" element={<AIAdvisor />} />
         <Route path="/simulator" element={<Simulator />} />
+        <Route path="/market" element={<MarketIntelligence />} />
+        <Route path="/trading" element={<PaperTrading />} />
+        <Route path="/money" element={<MoneyManagement />} />
+        <Route path="/fraud" element={<FraudDetection />} />
+        <Route path="/verification" element={<DocumentVerification />} />
+        <Route path="/automation" element={<Automation />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/alerts" element={<Alerts />} />
       </Route>
