@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
 import { AICFOAvatar } from "../components/ai/AICFOAvatar";
 
@@ -193,6 +193,23 @@ export function Login() {
         }}
       >
         <div style={{ width: "100%", maxWidth: 390 }}>
+          {/* Back to Product Overview */}
+          <Link
+            to="/overview"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12.5,
+              fontWeight: 600,
+              color: "#2563EB",
+              textDecoration: "none",
+              marginBottom: 16,
+            }}
+          >
+            ← Explore Product Overview
+          </Link>
+
           {/* Header */}
           <div style={{ marginBottom: 32 }}>
             <h2

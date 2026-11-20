@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../lib/AuthContext";
 import { api, type AlertItem } from "../../lib/api";
+import { openProductTour } from "../onboarding/OnboardingModal";
 
 export function Topbar() {
   const { businessId, logout } = useAuth();
@@ -59,7 +60,31 @@ export function Topbar() {
           <span>{businessId ?? "Acme Global Holdings"}</span>
         </div>
       </div>
-      <div className="topbar-aligned" style={{ position: "relative" }}>
+      <div className="topbar-aligned" style={{ position: "relative", display: "flex", alignItems: "center", gap: 10 }}>
+        {/* Product Tour Guided Walkthrough Button */}
+        <button
+          type="button"
+          onClick={() => openProductTour()}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 12px",
+            fontSize: 12,
+            fontWeight: 600,
+            borderRadius: 8,
+            color: "#2563EB",
+            background: "#EFF6FF",
+            border: "1px solid #BFDBFE",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}
+          title="Explore FinSight AI functions and guided walkthrough"
+        >
+          <span>🎓</span>
+          <span>Product Tour</span>
+        </button>
+
         {/* Notification Bell with unread badge */}
         <button
           onClick={() => setIsOpen((prev) => !prev)}

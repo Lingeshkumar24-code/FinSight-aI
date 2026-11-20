@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import { Layout } from "./components/layout/Layout";
 import { Login } from "./pages/Login";
+import { LandingPage } from "./pages/LandingPage";
 import { Dashboard } from "./pages/Dashboard";
 import { Upload } from "./pages/Upload";
 import { AIAdvisor } from "./pages/AIAdvisor";
@@ -21,10 +22,29 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function HomeRoute() {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) {
+    return <LandingPage />;
+  }
+  return (
+    <Layout>
+      <Dashboard />
+    </Layout>
+  );
+}
+
 function AppRoutes() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/" element={<HomeRoute />} />
+      <Route path="/overview" element={<LandingPage />} />
+      <Route
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
+      />
       <Route
         element={
           <RequireAuth>
@@ -32,7 +52,7 @@ function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Navigate to="/" replace />} />
         <Route path="/upload" element={<Upload />} />
         <Route path="/advisor" element={<AIAdvisor />} />
         <Route path="/simulator" element={<Simulator />} />
