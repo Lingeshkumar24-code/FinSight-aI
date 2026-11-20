@@ -27,8 +27,16 @@ describe("Landing and OnboardingModal from FinesightAI2.0", () => {
     expect(screen.getByText(/Your entire financial world,/i)).toBeInTheDocument();
     expect(screen.getByText(/One intelligent AI CFO\./i)).toBeInTheDocument();
 
+    // Plain-English verified metrics & decisions
+    expect(screen.getByText(/18\.7% Margin/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/₹23,50,000/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/2\.196x Liquidity/i)).toBeInTheDocument();
+    expect(screen.getByText(/Do Not Borrow · Collect Bills First/i)).toBeInTheDocument();
+    expect(screen.getByText(/Reliance Industries \(RELIANCE\.NS\)/i)).toBeInTheDocument();
+
     // Sections
     expect(screen.getByText(/WHAT IS FINSIGHT AI\?/i)).toBeInTheDocument();
+    expect(screen.getByText(/EXECUTIVE COMMAND CENTER/i)).toBeInTheDocument();
     expect(screen.getByText(/WHAT CAN IT DO\?/i)).toBeInTheDocument();
     expect(screen.getAllByText(/HOW IT WORKS/i)[0]).toBeInTheDocument();
     expect(screen.getByText(/MEET YOUR AI CFO/i)).toBeInTheDocument();
@@ -38,7 +46,7 @@ describe("Landing and OnboardingModal from FinesightAI2.0", () => {
     expect(screen.getByLabelText(/FinSight AI CFO companion/i)).toBeInTheDocument();
 
     // Navigation and CTAs
-    expect(screen.getByRole("button", { name: /Guided Tour/i })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Guided Tour/i })[0]).toBeInTheDocument();
     expect(screen.getAllByText(/Get Started/i)[0]).toBeInTheDocument();
   });
 
