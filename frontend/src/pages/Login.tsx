@@ -48,12 +48,12 @@ export function Login() {
   const [shakeKey, setShakeKey] = useState(0);
 
   useEffect(() => {
-    if (isAuthenticated) navigate("/dashboard", { replace: true });
+    if (isAuthenticated) navigate("/upload", { replace: true });
   }, [isAuthenticated, navigate]);
 
   useEffect(() => {
     if (phase === "success") {
-      const timer = window.setTimeout(() => navigate("/dashboard"), 700);
+      const timer = window.setTimeout(() => navigate("/upload"), 700);
       return () => window.clearTimeout(timer);
     }
   }, [phase, navigate]);

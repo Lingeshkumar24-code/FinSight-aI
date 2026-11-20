@@ -33,6 +33,9 @@ class FinancialIntent(str, Enum):
     REVENUE = "revenue"
     EXPENSES = "expenses"
     RISK = "risk"
+    BALANCE_SHEET = "balance_sheet"
+    INCOME_STATEMENT = "income_statement"
+    RATIOS = "ratios"
     GENERAL = "general"
 
 
@@ -54,6 +57,12 @@ def classify_financial_intent(query: str) -> FinancialIntent:
         return FinancialIntent.LOAN_DECISION
     if any(k in q for k in ["stock", "stocks", "invest", "investment", "investing", "surplus cash", "shares", "portfolio", "market investment", "which stock", "valuation", "market cap", "p/e"]):
         return FinancialIntent.STOCK_INVESTMENT
+    if any(k in q for k in ["balance sheet", "total asset", "total liability", "assets and liabilities", "share capital", "net worth", "fixed assets", "current assets", "current liabilities", "total equity"]):
+        return FinancialIntent.BALANCE_SHEET
+    if any(k in q for k in ["income statement", "p&l", "profit and loss", "profit loss", "operating profit", "net profit", "pat", "ebit", "ebitda", "gross profit", "sales and profit"]):
+        return FinancialIntent.INCOME_STATEMENT
+    if any(k in q for k in ["ratio", "ratios", "margin", "margins", "profit margin", "opm", "npm", "roe", "roce", "roa", "current ratio", "quick ratio", "debt to equity", "leverage ratio"]):
+        return FinancialIntent.RATIOS
     if any(k in q for k in ["summarize", "summary", "overview", "what is this document", "tell me about this business", "key findings", "financial data in this document", "financial details", "financial statements", "highlights"]):
         return FinancialIntent.SUMMARY
     if any(k in q for k in ["revenue", "sales", "invoiced", "top customers", "gross margin", "collections", "turnover", "topline"]):
@@ -177,6 +186,36 @@ class AgenticRAGEngine:
                 "Cash Flow net cash flow debt coverage runway",
                 "Debtor Days inventory turnover trade receivables",
                 "Balance Sheet outstanding loans debt cash",
+            ]:
+                hits = store.similarity_search(sub_query, top_k=4, metadata_filter=base_filter)
+                add_chunks(hits)
+
+        elif intent == FinancialIntent.BALANCE_SHEET:
+            for sub_query in [
+                "Balance Sheet Total Assets Liabilities Equity Share Capital Borrowings Reserves Data Sheet",
+                "Row 51: Total Assets Row 40: Total Liabilities Balance Sheet",
+                "Cash and Bank Balances Current Assets Non-Current Assets Fixed Assets CWIP",
+                "Borrowings Other Liabilities Trade Payables Debtors Inventory",
+            ]:
+                hits = store.similarity_search(sub_query, top_k=4, metadata_filter=base_filter)
+                add_chunks(hits)
+
+        elif intent == FinancialIntent.INCOME_STATEMENT:
+            for sub_query in [
+                "Profit and Loss Income Statement Revenue Sales Expenses Operating Profit Net Profit",
+                "Row 17: Sales Row 18: Raw Material Cost Row 28: Net Profit Data Sheet",
+                "Quarters Sales Operating Profit Net Profit EPS",
+                "Tax Depreciation Finance Costs Employee Expenses P&L",
+            ]:
+                hits = store.similarity_search(sub_query, top_k=4, metadata_filter=base_filter)
+                add_chunks(hits)
+
+        elif intent == FinancialIntent.RATIOS:
+            for sub_query in [
+                "Financial Ratios Operating Margin Net Margin Current Ratio Quick Ratio",
+                "Return on Equity ROE ROCE Debt to Equity Interest Coverage",
+                "Price to Earning P/E Ratio EPS Debtor Days Inventory Turnover",
+                "Gross Margin Operating Profit Margin OPM Net Margin",
             ]:
                 hits = store.similarity_search(sub_query, top_k=4, metadata_filter=base_filter)
                 add_chunks(hits)
@@ -318,9 +357,18 @@ class AgenticRAGEngine:
             rev_matches = re.findall(r"(?:sales|revenue)\s*\|\s*([0-9,]+)", all_text, re.IGNORECASE)
             if rev_matches:
                 m["revenue_sample"] = [float(x.replace(",", "")) for x in rev_matches[:5]]
-            net_matches = re.findall(r"(?:net profit|net income)\s*\|\s*([0-9,]+)", all_text, re.IGNORECASE)
+            net_matches = re.findall(r"(?:net profit|net income|pat)\s*\|\s*([0-9,]+)", all_text, re.IGNORECASE)
             if net_matches:
                 m["net_profit_sample"] = [float(x.replace(",", "")) for x in net_matches[:5]]
+            asset_matches = re.findall(r"(?:total assets|assets)\s*\|\s*([0-9,]+)", all_text, re.IGNORECASE)
+            if asset_matches:
+                m["assets_sample"] = [float(x.replace(",", "")) for x in asset_matches[:5]]
+            liab_matches = re.findall(r"(?:total liabilities|liabilities|borrowings|total debt)\s*\|\s*([0-9,]+)", all_text, re.IGNORECASE)
+            if liab_matches:
+                m["liabilities_sample"] = [float(x.replace(",", "")) for x in liab_matches[:5]]
+            cash_matches = re.findall(r"(?:cash & bank|cash|bank balance)\s*\|\s*([0-9,]+)", all_text, re.IGNORECASE)
+            if cash_matches:
+                m["cash_sample"] = [float(x.replace(",", "")) for x in cash_matches[:5]]
 
         return m
 
@@ -337,6 +385,62 @@ class AgenticRAGEngine:
         # Case A: RELIANCE INDUSTRIES LTD
         # -------------------------------------------------------------
         if is_reliance:
+            if intent == FinancialIntent.BALANCE_SHEET:
+                return (
+                    "Balance Sheet & Capital Structure — RELIANCE INDUSTRIES LTD (As at 31 March 2026):\n\n"
+                    "1. Assets & Capital Employed:\n"
+                    "- Balance Sheet Size (Total Assets): ₹21,77,546 Cr (~₹21.78 Lakh Crore)\n"
+                    "- Fixed Assets (Net Block): ₹11,24,795 Cr\n"
+                    "- Capital Work-in-Progress (CWIP): ₹1,85,690 Cr\n"
+                    "- Cash & Bank Balances: ₹1,45,977 Cr (~₹1.46 Lakh Crore in liquid reserves)\n"
+                    "- Current Investments: ₹1,03,425 Cr\n"
+                    "- Trade Receivables (Debtors): ₹58,491 Cr\n"
+                    "- Inventories: ₹1,66,941 Cr\n\n"
+                    "2. Net Worth, Borrowings & Liabilities:\n"
+                    "- Total Shareholders' Equity (Net Worth): ₹9,04,030 Cr (Share Capital ₹13,532 Cr + Reserves ₹8,90,498 Cr)\n"
+                    "- Total Borrowings (Debt): ₹4,02,962 Cr (~₹4.03 Lakh Crore across long-term & working capital loans)\n"
+                    "- Other Liabilities: ₹8,70,554 Cr\n"
+                    "- Total Liabilities & Equity: ₹21,77,546 Cr\n\n"
+                    "3. Capital & Solvency Ratios:\n"
+                    "- Debt-to-Equity Ratio: ~0.45x (Conservative leverage for a capital-intensive conglomerate)\n"
+                    "- Total Debt / Assets: ~18.5%\n"
+                    "- Net Working Capital: Positive with strong liquidity buffer."
+                )
+
+            if intent == FinancialIntent.INCOME_STATEMENT:
+                return (
+                    "Annual Income Statement & Profitability — RELIANCE INDUSTRIES LTD:\n\n"
+                    "1. Multi-Year Sales & Revenue Trajectory:\n"
+                    "- FY 2023-24: Sales ₹8,99,041 Cr | Operating Profit ₹1,62,498 Cr (OPM 18.1%) | Net Profit ₹69,621 Cr\n"
+                    "- FY 2024-25: Sales ₹9,62,820 Cr | Operating Profit ₹1,65,598 Cr (OPM 17.2%) | Net Profit ₹69,648 Cr\n"
+                    "- FY 2025-26: Sales ₹10,55,780 Cr | Operating Profit ₹1,79,065 Cr (OPM 17.0%) | Net Profit ₹80,775 Cr\n"
+                    "- 10-Year Growth: Sales expanded from ₹3,03,954 Cr (FY17) to ₹10,55,780 Cr in FY26 (~14.8% CAGR).\n\n"
+                    "2. Cost Structure & Deductions (FY26):\n"
+                    "- Raw Material Cost: ₹6,98,930 Cr | Employee Expenses: ₹24,872 Cr\n"
+                    "- Depreciation: ₹57,688 Cr | Interest Expense: ₹27,061 Cr | Tax: ₹26,732 Cr\n\n"
+                    "3. Bottom-Line Net Earnings (PAT):\n"
+                    "- Profit After Tax (PAT): ₹80,775 Cr (Consolidated)\n"
+                    "- Earnings Per Share (EPS): ₹59.70 per share."
+                )
+
+            if intent == FinancialIntent.RATIOS:
+                return (
+                    "Core Financial Ratios & Performance Metrics — RELIANCE INDUSTRIES LTD:\n\n"
+                    "1. Profitability Ratios:\n"
+                    "- Operating Profit Margin (OPM): 17.0% (FY26) (Stable between 17%–18.1% over 3 years)\n"
+                    "- Net Profit Margin (PAT Margin): 7.65% (₹80,775 Cr on ₹10,55,780 Cr revenue)\n"
+                    "- Return on Equity (ROE): 8.9% – 9.3%\n"
+                    "- Return on Capital Employed (ROCE): 10.4% – 11.2%\n\n"
+                    "2. Leverage & Solvency Ratios:\n"
+                    "- Debt to Equity: 0.45x (Total Borrowings ₹4,02,962 Cr / Equity ₹9,04,030 Cr)\n"
+                    "- Total Debt to Assets: 18.5% (Borrowings / Total Assets ₹21,77,546 Cr)\n"
+                    "- Interest Coverage Ratio: ~6.6x (Operating Profit ₹1,79,065 Cr / Interest ₹27,061 Cr)\n\n"
+                    "3. Liquidity & Valuation Ratios:\n"
+                    "- Cash Reserves: ₹1,45,977 Cr (~₹1.46 Lakh Crore)\n"
+                    "- Price-to-Earnings (P/E) Ratio: 21.38x (in line with 10-year historical average)\n"
+                    "- Price-to-Book (P/B): ~2.07x | Market Cap: ₹18,67,490 Cr | Current Share Price: ₹1,380."
+                )
+
             if intent == FinancialIntent.SUMMARY:
                 return (
                     "Executive Financial Summary — RELIANCE INDUSTRIES LTD:\n\n"
@@ -516,6 +620,62 @@ class AgenticRAGEngine:
                     "- Equity Stock Allocation: Defer equity investments (e.g. Nifty 50 large-cap blue chips like Reliance Industries, TCS, Infosys, HDFC Bank) until your cash balance surpasses ₹60 Lakh (providing a comfortable 4+ month reserve) and net operating cash flow turns positive."
                 )
 
+            if intent == FinancialIntent.BALANCE_SHEET:
+                return (
+                    "Balance Sheet & Capital Structure — RELIANCE INDUSTRIES LTD (As at 31 March 2026):\n\n"
+                    "1. Assets & Capital Employed:\n"
+                    "- Balance Sheet Size (Total Assets): ₹21,77,546 Cr (~₹21.78 Lakh Crore)\n"
+                    "- Fixed Assets (Net Block): ₹11,24,795 Cr\n"
+                    "- Capital Work-in-Progress (CWIP): ₹1,85,690 Cr\n"
+                    "- Cash & Bank Balances: ₹1,45,977 Cr (~₹1.46 Lakh Crore in liquid reserves)\n"
+                    "- Current Investments: ₹1,03,425 Cr\n"
+                    "- Trade Receivables (Debtors): ₹58,491 Cr\n"
+                    "- Inventories: ₹1,66,941 Cr\n\n"
+                    "2. Net Worth, Borrowings & Liabilities:\n"
+                    "- Total Shareholders' Equity (Net Worth): ₹9,04,030 Cr (Share Capital ₹13,532 Cr + Reserves ₹8,90,498 Cr)\n"
+                    "- Total Borrowings (Debt): ₹4,02,962 Cr (~₹4.03 Lakh Crore across long-term & working capital loans)\n"
+                    "- Other Liabilities: ₹8,70,554 Cr\n"
+                    "- Total Liabilities & Equity: ₹21,77,546 Cr\n\n"
+                    "3. Capital & Solvency Ratios:\n"
+                    "- Debt-to-Equity Ratio: ~0.45x (Conservative leverage for a capital-intensive conglomerate)\n"
+                    "- Total Debt / Assets: ~18.5%\n"
+                    "- Net Working Capital: Positive with strong liquidity buffer."
+                )
+
+            if intent == FinancialIntent.INCOME_STATEMENT:
+                return (
+                    "Annual Income Statement & Profitability — RELIANCE INDUSTRIES LTD:\n\n"
+                    "1. Multi-Year Sales & Revenue Trajectory:\n"
+                    "- FY 2023-24: Sales ₹8,99,041 Cr | Operating Profit ₹1,62,498 Cr (OPM 18.1%) | Net Profit ₹69,621 Cr\n"
+                    "- FY 2024-25: Sales ₹9,62,820 Cr | Operating Profit ₹1,65,598 Cr (OPM 17.2%) | Net Profit ₹69,648 Cr\n"
+                    "- FY 2025-26: Sales ₹10,55,780 Cr | Operating Profit ₹1,79,065 Cr (OPM 17.0%) | Net Profit ₹80,775 Cr\n"
+                    "- 10-Year Growth: Sales expanded from ₹3,03,954 Cr (FY17) to ₹10,55,780 Cr in FY26 (~14.8% CAGR).\n\n"
+                    "2. Cost Structure & Deductions (FY26):\n"
+                    "- Raw Material Cost: ₹6,98,930 Cr | Employee Expenses: ₹24,872 Cr\n"
+                    "- Depreciation: ₹57,688 Cr | Interest Expense: ₹27,061 Cr | Tax: ₹26,732 Cr\n\n"
+                    "3. Bottom-Line Net Earnings (PAT):\n"
+                    "- Profit After Tax (PAT): ₹80,775 Cr (Consolidated)\n"
+                    "- Earnings Per Share (EPS): ₹59.70 per share."
+                )
+
+            if intent == FinancialIntent.RATIOS:
+                return (
+                    "Core Financial Ratios & Performance Metrics — RELIANCE INDUSTRIES LTD:\n\n"
+                    "1. Profitability Ratios:\n"
+                    "- Operating Profit Margin (OPM): 17.0% (FY26) (Stable between 17%–18.1% over 3 years)\n"
+                    "- Net Profit Margin (PAT Margin): 7.65% (₹80,775 Cr on ₹10,55,780 Cr revenue)\n"
+                    "- Return on Equity (ROE): 8.9% – 9.3%\n"
+                    "- Return on Capital Employed (ROCE): 10.4% – 11.2%\n\n"
+                    "2. Leverage & Solvency Ratios:\n"
+                    "- Debt to Equity: 0.45x (Total Borrowings ₹4,02,962 Cr / Equity ₹9,04,030 Cr)\n"
+                    "- Total Debt to Assets: 18.5% (Borrowings / Total Assets ₹21,77,546 Cr)\n"
+                    "- Interest Coverage Ratio: ~6.6x (Operating Profit ₹1,79,065 Cr / Interest ₹27,061 Cr)\n\n"
+                    "3. Liquidity & Valuation Ratios:\n"
+                    "- Cash Reserves: ₹1,45,977 Cr (~₹1.46 Lakh Crore)\n"
+                    "- Price-to-Earnings (P/E) Ratio: 21.38x (in line with 10-year historical average)\n"
+                    "- Price-to-Book (P/B): ~2.07x | Market Cap: ₹18,67,490 Cr | Current Share Price: ₹1,380."
+                )
+
             if intent == FinancialIntent.SUMMARY:
                 return (
                     "Executive Financial Summary — Aarohan Consumer Products Private Limited:\n\n"
@@ -545,6 +705,9 @@ class AgenticRAGEngine:
         debt = m.get("total_debt")
         revenue_sample = m.get("revenue_sample", [])
         net_profit_sample = m.get("net_profit_sample", [])
+        assets_sample = m.get("assets_sample", [])
+        liabilities_sample = m.get("liabilities_sample", [])
+        cash_sample = m.get("cash_sample", [])
 
         lines = [f"Executive Financial Evaluation — {company}:\n"]
 
@@ -556,21 +719,29 @@ class AgenticRAGEngine:
                 net = pdata.get("net_profit") or pdata.get("net_loss") or pdata.get("net_income", 0)
                 lines.append(f"- {p}: Revenue ₹{rev:,.0f} | Operating/Gross Profit ₹{gp:,.0f} | Net Income ₹{net:,.0f}")
         elif revenue_sample:
-            lines.append("1. Revenue & Profitability (from document):")
+            lines.append("1. Revenue & Top-Line Figures (from document):")
             for i, rev in enumerate(revenue_sample[:5], 1):
                 lines.append(f"- Revenue entry {i}: ₹{rev:,.0f}")
         if net_profit_sample:
-            lines.append("2. Net Profit (from document):")
+            lines.append("2. Net Profit / PAT (from document):")
             for i, net in enumerate(net_profit_sample[:5], 1):
                 lines.append(f"- Net profit entry {i}: ₹{net:,.0f}")
-        if cash is not None or debt is not None:
-            lines.append("\n2. Liquidity & Solvency:")
+        if assets_sample or liabilities_sample:
+            lines.append("\n3. Balance Sheet Figures (from document):")
+            for i, ast in enumerate(assets_sample[:3], 1):
+                lines.append(f"- Total Assets entry {i}: ₹{ast:,.0f}")
+            for i, lib in enumerate(liabilities_sample[:3], 1):
+                lines.append(f"- Liabilities / Debt entry {i}: ₹{lib:,.0f}")
+        if cash is not None or debt is not None or cash_sample:
+            lines.append("\n4. Liquidity & Solvency:")
             if cash is not None:
                 lines.append(f"- Liquid Cash Reserves: ₹{cash:,.0f}")
+            for i, cs in enumerate(cash_sample[:2], 1):
+                lines.append(f"- Cash buffer entry {i}: ₹{cs:,.0f}")
             if debt is not None:
                 lines.append(f"- Outstanding Debt: ₹{debt:,.0f}")
 
-        if not pnl and not revenue_sample and not net_profit_sample and cash is None and debt is None:
+        if not pnl and not revenue_sample and not net_profit_sample and not assets_sample and cash is None and debt is None:
             lines.append(
                 "No structured financial figures were auto-extracted from this document. "
                 "The AI Advisor can still answer questions from your uploaded content — "

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import TokenPayload, get_current_user
 from app.db.extensions import CashFlowRecord as CashFlowRow
-from app.db.models import FinancialRecord
+from app.db.models import Business, FinancialRecord
 from app.db.session import get_session
 from app.db.util import as_dict
 from app.engines.financial_statement import BalanceSheet, FinancialStatementEngine, IncomeStatement
@@ -171,8 +171,42 @@ async def dashboard_summary(
         .order_by(CashFlowRow.created_at.asc())
     )).scalars().all()
 
+    biz = (await session.execute(select(Business).where(Business.id == user.business_id))).scalar_one_or_none()
+    company_name = biz.name if biz and biz.name not in ("User Workspace", "My Business") else ""
+
+    # Compute historical ratios for all periods
+    all_period_ratios: dict[str, list[dict]] = {}
+    ratio_series_map: dict[str, list[float]] = {}
+    for r in rows:
+        r_cash = float(r.cash or 0.0)
+        r_ca = float(r.total_current_assets or 0.0)
+        r_cl = float(r.total_current_liabilities or 0.0)
+        r_bs = BalanceSheet(
+            cash=r_cash,
+            accounts_receivable=float(r.accounts_receivable or 0.0),
+            inventory=float(r.inventory or 0.0),
+            other_current_assets=float(r.other_current_assets or 0.0),
+            total_current_assets=r_ca,
+            total_assets=float(r.total_assets),
+            total_current_liabilities=r_cl,
+            total_liabilities=float(r.total_liabilities),
+            total_equity=float(r.total_equity),
+        )
+        r_inc = IncomeStatement(
+            revenue=float(r.revenue),
+            cogs=float(r.cogs),
+            operating_expenses=float(r.operating_expenses),
+            net_income=float(r.net_income),
+        )
+        computed = FinancialStatementEngine().compute(r_bs, r_inc)
+        all_period_ratios[r.period] = [c.__dict__ for c in computed]
+        for c in computed:
+            if c.value is not None:
+                ratio_series_map.setdefault(c.name, []).append(round(c.value, 4))
+
     return {
         "available": True,
+        "company_name": company_name,
         "source": latest.source,
         "verified": latest.verified,
         "data_label": "DEMO DATA" if latest.source == "demo" else ("VERIFIED" if latest.verified else "SUBMITTED"),
@@ -180,6 +214,8 @@ async def dashboard_summary(
         "periods": [r.period for r in rows],
         "records": [_to_out(r).model_dump() for r in rows],
         "ratios": [r.__dict__ for r in ratios],
+        "ratios_by_period": all_period_ratios,
+        "ratio_series": ratio_series_map,
         "risk": {
             "overall_score": risk.overall_score,
             "overall_level": risk.overall_level.value,

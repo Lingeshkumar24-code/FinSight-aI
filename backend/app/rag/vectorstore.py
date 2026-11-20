@@ -83,6 +83,9 @@ class VectorStore(ABC):
         metadata_filter: dict | None = None,
     ) -> list[ScoredChunk]: ...
 
+    @abstractmethod
+    def delete_by_metadata(self, metadata_filter: dict) -> int: ...
+
 
 class InMemoryVectorStore(VectorStore):
     """Deterministic, dependency-free "embedding" using term-frequency
@@ -99,6 +102,16 @@ class InMemoryVectorStore(VectorStore):
         for chunk in chunks:
             self._chunks[chunk.id] = chunk
             self._vectors[chunk.id] = _vectorize(chunk.text)
+
+    def delete_by_metadata(self, metadata_filter: dict) -> int:
+        to_del = [
+            cid for cid, chunk in self._chunks.items()
+            if all(chunk.metadata.get(key) == value for key, value in metadata_filter.items())
+        ]
+        for cid in to_del:
+            self._chunks.pop(cid, None)
+            self._vectors.pop(cid, None)
+        return len(to_del)
 
     def similarity_search(
         self,

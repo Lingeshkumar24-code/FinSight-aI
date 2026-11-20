@@ -62,6 +62,7 @@ async def delete_document(
     document_id: str,
     user: TokenPayload = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    vector_store: VectorStore = Depends(get_vector_store),
 ):
     """Delete an uploaded document and its indexed chunks from the user's workspace."""
     doc = (
@@ -72,6 +73,7 @@ async def delete_document(
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
+    vector_store.delete_by_metadata({"document_id": document_id})
     await session.execute(delete(DocumentChunkRow).where(DocumentChunkRow.document_id == document_id))
     await session.delete(doc)
     await session.commit()
@@ -155,42 +157,26 @@ async def upload_document(
         # Only ingest structured financial records if this is a comprehensive statement
         # (multi-period or contains balance sheet assets), so tiny 1-line text-chunk tests don't wipe demo records.
         if fin_records and (len(fin_records) >= 2 or any(r.get("total_assets") for r in fin_records)):
-            if company_name and (biz.name in ("User Workspace", "My Business", "Sharma Enterprises Pvt Ltd", "Acme Global Holdings") or not biz.name):
+            if company_name:
                 biz.name = company_name
 
-            # Remove demo/seed records so user dashboard reflects uploaded corporate filings
+            # Remove previous financial records so dashboard reflects the newly uploaded corporate filing cleanly
             await session.execute(
                 delete(FinancialRecord).where(
                     FinancialRecord.business_id == user.business_id,
-                    FinancialRecord.source == "demo",
                 )
             )
 
             for rec_data in fin_records:
-                existing = (
-                    await session.execute(
-                        select(FinancialRecord).where(
-                            FinancialRecord.business_id == user.business_id,
-                            FinancialRecord.period == rec_data["period"],
-                        )
+                session.add(
+                    FinancialRecord(
+                        business_id=user.business_id,
+                        source="uploaded",
+                        verified=True,
+                        source_document_id=document_id,
+                        **rec_data,
                     )
-                ).scalar_one_or_none()
-                if existing:
-                    for k, v in rec_data.items():
-                        setattr(existing, k, v)
-                    existing.source = "uploaded"
-                    existing.verified = True
-                    existing.source_document_id = document_id
-                else:
-                    session.add(
-                        FinancialRecord(
-                            business_id=user.business_id,
-                            source="uploaded",
-                            verified=True,
-                            source_document_id=document_id,
-                            **rec_data,
-                        )
-                    )
+                )
 
             if cashflows:
                 await session.execute(
@@ -213,6 +199,8 @@ async def upload_document(
         pass
 
     await session.commit()
+    vector_store.delete_by_metadata({"document_id": document_id})
+    vector_store.delete_by_metadata({"business_id": user.business_id, "source": filename})
     vector_store.upsert(chunks)
 
     return DocumentUploadResponse(

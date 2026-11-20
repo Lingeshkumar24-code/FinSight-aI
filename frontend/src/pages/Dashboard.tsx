@@ -4,9 +4,10 @@ import { Card } from "../components/ui/Card";
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
-function inr(value: number | null | undefined): string {
+function inr(value: number | null | undefined, isCrores = false): string {
   if (value == null) return "—";
-  return `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  const formatted = Number(value).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+  return isCrores ? `₹${formatted} Cr` : `₹${formatted}`;
 }
 
 function fmtRatio(value: number | null | undefined): string {
@@ -487,15 +488,25 @@ export function Dashboard() {
   }
 
   // ── Data available ─────────────────────────────────────────────────────────
-  const allRatios: RatioOut[] = summary.ratios ?? [];
+  const recordsList = summary.records ?? [];
+  const latestRecord = recordsList.length > 0 ? recordsList[recordsList.length - 1] : null;
+  const periodRecord =
+    selectedPeriod === "all"
+      ? latestRecord
+      : (recordsList.find((record) => record.period === selectedPeriod) ?? latestRecord);
+
+  const activePeriod = String(periodRecord?.period ?? summary.period ?? "Latest");
+
+  // Dynamic ratios recalculated for the currently chosen period
+  const allRatios: RatioOut[] =
+    selectedPeriod !== "all" && summary.ratios_by_period?.[selectedPeriod]
+      ? summary.ratios_by_period[selectedPeriod]
+      : (summary.ratios ?? []);
+
   const byName = Object.fromEntries(allRatios.map((ratio) => [ratio.name, ratio]));
   const activeWatchCount = summary.risk?.flags.filter((flag) => flag.level !== "low").length ?? 0;
   const cashSeries = summary.cash_series ?? [];
   const cashDisplay = cashSeries.slice(0, 6);
-  const periodRecord =
-    selectedPeriod === "all"
-      ? null
-      : (summary.records ?? []).find((record) => record.period === selectedPeriod);
 
   const netMargin = periodRecord
     ? Number(periodRecord.revenue) > 0
@@ -506,13 +517,19 @@ export function Dashboard() {
   const banner = byName["net_margin_pct"]?.interpretation
     ? {
         head: "Profitability",
-        body: `Net profit margin is ${fmtPct(netMargin)}% — ${byName["net_margin_pct"].interpretation}.`,
+        body: `Net profit margin for ${activePeriod} is ${fmtPct(netMargin)}% — ${byName["net_margin_pct"].interpretation}.`,
         tone: (netMargin ?? 0) >= 0 ? "good" : "bad",
       }
     : null;
 
   const isDemo = summary.data_label === "DEMO DATA";
   const isVerified = summary.verified === true;
+  const isCrores = Boolean(
+    summary.company_name?.toLowerCase().includes("reliance") ||
+    summary.company_name?.toLowerCase().includes("state bank") ||
+    summary.company_name?.toLowerCase().includes("sbi") ||
+    (periodRecord && Number(periodRecord.revenue) > 10000 && Number(periodRecord.total_assets) > 50000)
+  );
 
   // Cash runway months
   const runwayMonths = summary.cash_runway_months ?? null;
@@ -526,42 +543,72 @@ export function Dashboard() {
       name: "Current Ratio",
       fmt: fmtRatio,
       key: "current_ratio",
-       series: byName["current_ratio"]?.value == null ? [] : [byName["current_ratio"].value],
+      series:
+        summary.ratio_series?.["current_ratio"] && summary.ratio_series["current_ratio"].length > 1
+          ? summary.ratio_series["current_ratio"]
+          : byName["current_ratio"]?.value != null
+          ? [byName["current_ratio"].value]
+          : [],
       unit: "x",
     },
     {
       name: "Quick Ratio",
       fmt: fmtRatio,
       key: "quick_ratio",
-       series: byName["quick_ratio"]?.value == null ? [] : [byName["quick_ratio"].value],
+      series:
+        summary.ratio_series?.["quick_ratio"] && summary.ratio_series["quick_ratio"].length > 1
+          ? summary.ratio_series["quick_ratio"]
+          : byName["quick_ratio"]?.value != null
+          ? [byName["quick_ratio"].value]
+          : [],
       unit: "x",
     },
     {
       name: "Debt / Equity",
       fmt: fmtRatio,
       key: "debt_to_equity",
-       series: byName["debt_to_equity"]?.value == null ? [] : [byName["debt_to_equity"].value],
+      series:
+        summary.ratio_series?.["debt_to_equity"] && summary.ratio_series["debt_to_equity"].length > 1
+          ? summary.ratio_series["debt_to_equity"]
+          : byName["debt_to_equity"]?.value != null
+          ? [byName["debt_to_equity"].value]
+          : [],
       unit: "x",
     },
     {
       name: "Gross Margin",
       fmt: fmtPct,
       key: "gross_margin_pct",
-       series: byName["gross_margin_pct"]?.value == null ? [] : [byName["gross_margin_pct"].value],
+      series:
+        summary.ratio_series?.["gross_margin_pct"] && summary.ratio_series["gross_margin_pct"].length > 1
+          ? summary.ratio_series["gross_margin_pct"]
+          : byName["gross_margin_pct"]?.value != null
+          ? [byName["gross_margin_pct"].value]
+          : [],
       unit: "%",
     },
     {
       name: "Return on Equity",
       fmt: fmtPct,
       key: "return_on_equity_pct",
-       series: byName["return_on_equity_pct"]?.value == null ? [] : [byName["return_on_equity_pct"].value],
+      series:
+        summary.ratio_series?.["return_on_equity_pct"] && summary.ratio_series["return_on_equity_pct"].length > 1
+          ? summary.ratio_series["return_on_equity_pct"]
+          : byName["return_on_equity_pct"]?.value != null
+          ? [byName["return_on_equity_pct"].value]
+          : [],
       unit: "%",
     },
     {
       name: "Debt / Assets",
       fmt: fmtPct,
       key: "debt_to_assets",
-       series: byName["debt_to_assets"]?.value == null ? [] : [byName["debt_to_assets"].value],
+      series:
+        summary.ratio_series?.["debt_to_assets"] && summary.ratio_series["debt_to_assets"].length > 1
+          ? summary.ratio_series["debt_to_assets"]
+          : byName["debt_to_assets"]?.value != null
+          ? [byName["debt_to_assets"].value]
+          : [],
       unit: "%",
     },
   ];
@@ -573,7 +620,8 @@ export function Dashboard() {
         <div>
           <div className="page-kicker" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <h1 style={{ margin: 0 }}>
-              {summary.period ? `${summary.period} — ` : ""}Financial Performance Overview
+              {summary.company_name ? `${summary.company_name} — ` : ""}
+              {activePeriod ? `${activePeriod} — ` : ""}Financial Performance Overview
             </h1>
             {isDemo && (
               <span
@@ -710,6 +758,63 @@ export function Dashboard() {
             </span>
           </div>
         </div>
+      )}
+
+      {/* ── Statement Fundamentals Matrix ── */}
+      {periodRecord && (
+        <Card>
+          <div className="section-header">
+            <div>
+              <h2>Statement Fundamentals Matrix ({activePeriod})</h2>
+              <span className="section-run">
+                Key statement figures extracted and calculated directly from uploaded records · All figures in ₹
+              </span>
+            </div>
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: 16,
+              marginTop: 16,
+            }}
+          >
+            <div style={{ background: "#F9FAFB", padding: "16px 20px", borderRadius: 12, border: "1px solid #E5E7EB" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Total Revenue / Turnover</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#0A0A0A", marginTop: 4 }}>{inr(Number(periodRecord.revenue), isCrores)}</div>
+              <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>Topline Income</div>
+            </div>
+            <div style={{ background: "#F9FAFB", padding: "16px 20px", borderRadius: 12, border: "1px solid #E5E7EB" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Net Profit (PAT)</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: Number(periodRecord.net_income) >= 0 ? "#059669" : "#DC2626", marginTop: 4 }}>
+                {inr(Number(periodRecord.net_income), isCrores)}
+              </div>
+              <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>Bottom-line earnings</div>
+            </div>
+            <div style={{ background: "#F9FAFB", padding: "16px 20px", borderRadius: 12, border: "1px solid #E5E7EB" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Total Assets</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#0A0A0A", marginTop: 4 }}>{inr(Number(periodRecord.total_assets), isCrores)}</div>
+              <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>Balance Sheet Scale</div>
+            </div>
+            <div style={{ background: "#F9FAFB", padding: "16px 20px", borderRadius: 12, border: "1px solid #E5E7EB" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Total Liabilities &amp; Debt</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#0A0A0A", marginTop: 4 }}>{inr(Number(periodRecord.total_liabilities), isCrores)}</div>
+              <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>External Obligations</div>
+            </div>
+            <div style={{ background: "#F9FAFB", padding: "16px 20px", borderRadius: 12, border: "1px solid #E5E7EB" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Total Equity / Net Worth</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#0A0A0A", marginTop: 4 }}>{inr(Number(periodRecord.total_equity), isCrores)}</div>
+              <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>Shareholders' Fund</div>
+            </div>
+            <div style={{ background: "#F9FAFB", padding: "16px 20px", borderRadius: 12, border: "1px solid #E5E7EB" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Cash &amp; Bank Balance</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#059669", marginTop: 4 }}>
+                {inr(Number(periodRecord.cash ?? periodRecord.closing_cash ?? 0), isCrores)}
+              </div>
+              <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>Liquid Reserves</div>
+            </div>
+          </div>
+        </Card>
       )}
 
       {/* ── Core metric KPI grid ── */}

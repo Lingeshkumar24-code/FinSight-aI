@@ -3,6 +3,7 @@ Unit & integration tests for Resend Email and OTP authentication.
 """
 from __future__ import annotations
 
+import uuid
 import pytest
 from fastapi.testclient import TestClient
 
@@ -101,7 +102,8 @@ def test_api_otp_send_and_verify_flow():
     assert verify_resp.status_code == 200, verify_resp.text
     auth_data = verify_resp.json()
     assert "access_token" in auth_data
-    assert auth_data["business_id"].startswith("biz-")
+    assert auth_data["business_id"] != ""
+    assert uuid.UUID(auth_data["business_id"])
     assert auth_data["user_id"] != ""
 
     # Step 5: Test /auth/me with the newly issued token
@@ -115,7 +117,8 @@ def test_api_otp_send_and_verify_flow():
 def test_api_reset_password_with_otp():
     otp_service.clear()
     client = TestClient(app)
-    email = "reset_user@enterprise.com"
+    import uuid
+    email = f"reset_user_{uuid.uuid4().hex[:8]}@enterprise.com"
 
     # Register an account first
     reg = client.post("/api/v1/auth/register", json={"email": email, "password": "OldPassword123!"})

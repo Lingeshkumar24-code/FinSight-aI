@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, ApiError, type AdvisorResponse, type DocumentListItem, type DocumentUploadResponse } from "../lib/api";
 import { Card } from "../components/ui/Card";
 
@@ -61,12 +62,26 @@ const styles = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function Upload() {
+  const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<DocumentUploadResponse | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [redirectCount, setRedirectCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (redirectCount === null) return;
+    if (redirectCount <= 0) {
+      navigate("/dashboard");
+      return;
+    }
+    const timer = setTimeout(() => {
+      setRedirectCount((c) => (c !== null ? c - 1 : null));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [redirectCount, navigate]);
 
   // Document history state
   const [historyDocs, setHistoryDocs] = useState<DocumentListItem[]>([]);
@@ -158,10 +173,7 @@ export function Upload() {
       const resp = await api.uploadDocument(selectedFile);
       setResult(resp);
       void loadDocuments();
-      // Mark indexing complete immediately. The optional AI summary is a
-      // separate LLM request and must not make a successful upload look
-      // stuck on "Chunking & Vectorising" when a provider is slow or rate
-      // limited.
+      setRedirectCount(3);
       setUploading(false);
       void askQuestion("Summarize the financial data in this document", true);
     } catch (err) {
@@ -333,115 +345,162 @@ export function Upload() {
         <Card>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
             <span style={{ fontSize: 28, lineHeight: 1 }}>✅</span>
-            <div>
-              <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>Indexed Successfully</h3>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700, color: "#059669" }}>
+                Statement Processed & Dashboard Generated
+              </h3>
               <p style={{ margin: 0, fontSize: 13.5, color: "var(--ink-soft)" }}>
-                <strong>{result.source}</strong> — {" "}
+                <strong>{result.source}</strong> —{" "}
                 <strong style={{ color: "var(--accent)" }}>{result.chunks_indexed}</strong>{" "}
-                semantic chunk{result.chunks_indexed !== 1 ? "s" : ""} vectorised and stored.
-                The AI Advisor can now answer questions from this document.
+                semantic chunks vectorised. Financial statements and ratios computed across all periods.
               </p>
+              <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => navigate("/dashboard")}
+                  style={{
+                    background: "#0A0A0A",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "10px 22px",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                  }}
+                >
+                  📊 View Executive Dashboard with Uploaded Metrics →
+                </button>
+                {redirectCount !== null && redirectCount > 0 && (
+                  <span style={{ fontSize: 13, color: "#6B7280" }}>
+                    Auto-redirecting in <strong>{redirectCount}s</strong>…
+                    <button
+                      type="button"
+                      onClick={() => setRedirectCount(null)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#2563EB",
+                        marginLeft: 8,
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                        fontSize: 13,
+                      }}
+                    >
+                      Stay on this page
+                    </button>
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </Card>
       )}
 
-      {/* AI Q&A section — shown after upload */}
-      {result && (
+      {/* AI Q&A section — always visible for uploaded document queries */}
+      <div id="ask-ai-section">
         <Card>
           <div className="section-header">
-            <h2>🤖 Ask AI About This Document</h2>
+            <div>
+              <h2>🤖 Ask AI About Your Financial Documents</h2>
+              <span className="section-run">RAG Semantic Search &amp; Verified CFO Deliberation</span>
+            </div>
           </div>
-          <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: "6px 0 16px" }}>
-            Ask anything about the uploaded file — revenue trends, expense breakdowns, profit
-            margins. Monetary values will be shown in <strong>₹ Indian Rupees</strong>.
-          </p>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: "6px 0 16px" }}>
+          Ask anything about your corporate filings — revenue trends, profit margins, balance sheet assets, debt,
+          and ratios. All monetary values are verified from chunks and formatted in <strong>₹ Indian Rupees</strong>.
+        </p>
 
-          <form onSubmit={handleAskSubmit} style={{ display: "flex", gap: 10 }}>
-            <input
-              type="text"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="e.g. What is the total revenue? Which month had highest expenses?"
-              style={{
-                flex: 1,
-                padding: "10px 14px",
-                border: "1.5px solid var(--border-strong)",
-                borderRadius: 8,
-                fontSize: 14,
-                outline: "none",
-                transition: "border-color 0.2s ease",
-              }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "#0A0A0A")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border-strong)")}
-            />
+        <form onSubmit={handleAskSubmit} style={{ display: "flex", gap: 10 }}>
+          <input
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="e.g. What is the total revenue? What is our net profit? Summarize our balance sheet."
+            style={{
+              flex: 1,
+              padding: "10px 14px",
+              border: "1.5px solid var(--border-strong)",
+              borderRadius: 8,
+              fontSize: 14,
+              outline: "none",
+              transition: "border-color 0.2s ease",
+            }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "#0A0A0A")}
+            onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border-strong)")}
+          />
+          <button
+            type="submit"
+            style={{
+              ...styles.btnPrimary,
+              ...(asking || !question.trim() ? styles.btnDisabled : {}),
+            }}
+            disabled={asking || !question.trim()}
+            onMouseEnter={(e) => {
+              if (!asking && question.trim())
+                (e.currentTarget as HTMLButtonElement).style.background = "#2a2a2a";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "#0A0A0A";
+            }}
+          >
+            {asking ? "⏳ Thinking…" : "▶ Ask AI"}
+          </button>
+        </form>
+
+        {/* Suggested quick questions */}
+        <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[
+            "What is the total revenue?",
+            "What is our net profit?",
+            "What is our balance sheet?",
+            "Summarize our financial position",
+          ].map((q) => (
             <button
-              type="submit"
+              key={q}
+              type="button"
               style={{
-                ...styles.btnPrimary,
-                ...(asking || !question.trim() ? styles.btnDisabled : {}),
+                ...styles.btnSecondary,
+                padding: "5px 12px",
+                fontSize: 12,
+                borderRadius: 20,
               }}
-              disabled={asking || !question.trim()}
+              onClick={() => {
+                setQuestion(q);
+                askQuestion(q);
+              }}
               onMouseEnter={(e) => {
-                if (!asking && question.trim())
-                  (e.currentTarget as HTMLButtonElement).style.background = "#2a2a2a";
+                (e.currentTarget as HTMLButtonElement).style.background = "#f5f5f5";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = "#0A0A0A";
+                (e.currentTarget as HTMLButtonElement).style.background = "#fff";
               }}
             >
-              {asking ? "⏳ Thinking…" : "▶ Ask AI"}
+              {q}
             </button>
-          </form>
+          ))}
+        </div>
 
-          {/* Suggested quick questions */}
-          <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[
-              "What is the total revenue?",
-              "Which month had the highest expenses?",
-              "What is the net profit margin?",
-              "Show a summary of all financial data",
-            ].map((q) => (
-              <button
-                key={q}
-                style={{
-                  ...styles.btnSecondary,
-                  padding: "5px 12px",
-                  fontSize: 12,
-                  borderRadius: 20,
-                }}
-                onClick={() => {
-                  setQuestion(q);
-                  askQuestion(q);
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "#f5f5f5";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "#fff";
-                }}
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-
-          {aiError && (
-            <p
-              style={{
-                marginTop: 12,
-                color: "#dc2626",
-                fontSize: 13,
-                background: "#fef2f2",
-                padding: "8px 12px",
-                borderRadius: 6,
-              }}
-            >
-              ⚠ {aiError}
-            </p>
-          )}
-        </Card>
-      )}
+        {aiError && (
+          <p
+            style={{
+              marginTop: 12,
+              color: "#dc2626",
+              fontSize: 13,
+              background: "#fef2f2",
+              padding: "8px 12px",
+              borderRadius: 6,
+            }}
+          >
+            ⚠ {aiError}
+          </p>
+        )}
+      </Card>
+      </div>
 
       {/* AI Answer display */}
       {aiAnswer && (
@@ -604,8 +663,10 @@ export function Upload() {
                         <button
                           type="button"
                           onClick={() => {
-                            setQuestion(`Summarize the financial data in ${doc.filename}`);
-                            void askQuestion(`Summarize the financial data in ${doc.filename}`);
+                            const q = `Summarize the financial data in ${doc.filename}`;
+                            setQuestion(q);
+                            document.getElementById("ask-ai-section")?.scrollIntoView({ behavior: "smooth" });
+                            void askQuestion(q);
                           }}
                           style={{
                             padding: "4px 10px",

@@ -76,8 +76,8 @@ async def register(
 
     # Generate isolated workspace business_id and user_id
     user_id = str(uuid.uuid4())
+    business_id = str(uuid.uuid4())
     prefix = re.sub(r"[^a-zA-Z0-9]", "", email.split("@")[0])[:12].lower() or "user"
-    business_id = f"biz-{prefix}-{uuid.uuid4().hex[:6]}"
 
     # Create dedicated Business workspace
     biz_name = payload.business_name.strip() or f"{payload.full_name.strip() or prefix.capitalize()}'s Workspace"
@@ -241,8 +241,8 @@ async def verify_otp(
 
     # If new user authenticating via OTP, automatically provision their dedicated workspace
     user_id = str(uuid.uuid4())
+    business_id = str(uuid.uuid4())
     prefix = re.sub(r"[^a-zA-Z0-9]", "", email.split("@")[0])[:12].lower() or "user"
-    business_id = f"biz-{prefix}-{uuid.uuid4().hex[:6]}"
 
     biz_name = payload.business_name.strip() or f"{payload.full_name.strip() or prefix.capitalize()}'s Workspace"
     new_biz = Business(id=business_id, name=biz_name, currency="INR")

@@ -158,6 +158,7 @@ export interface DocumentListItem {
 
 export interface DashboardSummary {
   available: boolean;
+  company_name?: string;
   message?: string;
   source?: string;
   verified?: boolean;
@@ -166,6 +167,8 @@ export interface DashboardSummary {
   periods?: string[];
   records?: Record<string, unknown>[];
   ratios?: RatioOut[];
+  ratios_by_period?: Record<string, RatioOut[]>;
+  ratio_series?: Record<string, number[]>;
   risk?: RiskResponse;
   cash_series?: number[];
   cash_runway_months?: number | null;

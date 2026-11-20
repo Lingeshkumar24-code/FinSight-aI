@@ -221,7 +221,8 @@ def test_register_creates_distinct_user_and_isolated_workspace(client):
     token = data["access_token"]
     biz_id = data["business_id"]
     user_id = data["user_id"]
-    assert biz_id.startswith("biz-")
+    assert biz_id != ""
+    assert uuid.UUID(biz_id)
     assert user_id != ""
 
     # Test duplicate registration rejection (409 Conflict)

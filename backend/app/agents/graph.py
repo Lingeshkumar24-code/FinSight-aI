@@ -161,9 +161,25 @@ _INTENT_TO_ROUTE: dict[Intent, str] = {
 }
 
 
+def make_route_task(retriever: Retriever | None = None):
+    def route_task_fn(state: AgentState) -> dict[str, Any]:
+        intent = state.get("intent", "general_rag")
+        params = state.get("extracted_params", {})
+
+        # If retriever is available and the required parameters for financial_statement
+        # (balance_sheet, income_statement) are not in extracted_params, route to rag:retrieve
+        # so the Agentic RAG engine retrieves and answers from the user's uploaded documents.
+        if retriever is not None:
+            if intent == "financial_statement" and not ("balance_sheet" in params and "income_statement" in params):
+                return {"route": "rag:retrieve"}
+
+        return {"route": _INTENT_TO_ROUTE.get(intent, "rag:retrieve")}
+
+    return route_task_fn
+
+
 def route_task(state: AgentState) -> dict[str, Any]:
-    intent = state.get("intent", "general_rag")
-    return {"route": _INTENT_TO_ROUTE.get(intent, "rag:retrieve")}
+    return make_route_task(None)(state)
 
 
 # ---------------------------------------------------------------------------
@@ -480,7 +496,9 @@ def make_generate_response(llm_router: LLMRouter | None):
             "Do NOT invent, estimate, hallucinate, or fabricate any financial figure, percentage, date, "
             "company name, or ratio. If a figure is not present in the provided data, say exactly that "
             "it is not available in the uploaded document.\n"
-            "2. Never use the $ symbol or USD labels. Format every monetary amount in Indian Rupees using ₹.\n"
+            "2. Never use the $ symbol or USD labels. Format every monetary amount in Indian Rupees using ₹. "
+            "For large Indian corporate statements (like Reliance Industries, SBI, etc.), numbers in the sheet represent Crores, "
+            "so append Cr (e.g. ₹80,775 Cr net profit, ₹10,55,780 Cr revenue, ₹21,77,546 Cr total assets).\n"
             "3. If the data is insufficient to answer, say so clearly and specify exactly what is needed.\n"
             "4. If a question is unrelated to business finance, politely decline and redirect to a financial question.\n"
             "Be concise, accurate, and professional. Reply in plain chat text: no markdown formatting, "
@@ -518,7 +536,7 @@ def build_graph(retriever: Retriever | None = None, llm_router: LLMRouter | None
     graph = StateGraph(AgentState)
 
     graph.add_node("understand_query", understand_query)
-    graph.add_node("route_task", route_task)
+    graph.add_node("route_task", make_route_task(retriever))
     graph.add_node("execute_tool", make_execute_tool(retriever))
     graph.add_node("validate_result", validate_result)
     graph.add_node("generate_response", make_generate_response(llm_router))
