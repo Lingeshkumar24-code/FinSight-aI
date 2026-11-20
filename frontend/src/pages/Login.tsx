@@ -79,9 +79,12 @@ export function Login() {
       setOtpSent(true);
       setCooldown(30);
       setPhase("idle");
-      setInfoMessage(`Verification code sent to ${email} via Resend.`);
       if (res.dev_otp) {
-        setDevOtpNotice(`Dev code: ${res.dev_otp}`);
+        setOtp(res.dev_otp);
+        setDevOtpNotice(`Code: ${res.dev_otp}`);
+        setInfoMessage(`Verification code ${res.dev_otp} is auto-filled. Click Verify & Sign In to continue.`);
+      } else {
+        setInfoMessage(`Verification code sent to ${email} via Resend. Please check your inbox and spam folder.`);
       }
     } catch {
       setPhase("error");

@@ -7,11 +7,10 @@ from .base import CompletionRequest, CompletionResponse, LLMProvider, ProviderEr
 
 
 _FALLBACK_MODELS = [
-    "openai/gpt-oss-120b",
-    "qwen/qwen3.8-27b",
-    "openai/gpt-oss-20b",
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it",
 ]
 
 
@@ -24,11 +23,11 @@ class GroqProvider(LLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "openai/gpt-oss-120b",
+        model: str = "llama-3.3-70b-versatile",
         timeout: float = 30.0,
     ) -> None:
-        self.api_key = api_key
-        self.model = model
+        self.api_key = (api_key or "").strip()
+        self.model = (model or "llama-3.3-70b-versatile").strip()
         self.timeout = timeout
         self._base_url = "https://api.groq.com/openai/v1/chat/completions"
 
@@ -38,7 +37,7 @@ class GroqProvider(LLMProvider):
             messages.append({"role": "system", "content": request.system})
         messages.append({"role": "user", "content": request.prompt})
 
-        # Models to attempt if initial returns 404 (model not found on account)
+        # Models to attempt in order
         models_to_try = [self.model] + [m for m in _FALLBACK_MODELS if m != self.model]
         started = time.perf_counter()
         last_error: Exception | None = None
@@ -56,8 +55,8 @@ class GroqProvider(LLMProvider):
                             "max_tokens": request.max_tokens,
                         },
                     )
-                    # If 404 model not found, try next available model on Groq
-                    if resp.status_code == 404 and "model" in resp.text.lower():
+                    # If 400/404 model not found or 429 rate limit, try next fallback model on Groq
+                    if resp.status_code in (400, 404, 429) and ("model" in resp.text.lower() or "rate" in resp.text.lower()):
                         continue
 
                     resp.raise_for_status()
@@ -66,7 +65,7 @@ class GroqProvider(LLMProvider):
                     usage = data.get("usage", {})
 
                     if not isinstance(text, str) or not text.strip():
-                        raise ProviderError("Groq returned an empty completion")
+                        continue
 
                     latency_ms = (time.perf_counter() - started) * 1000
                     return CompletionResponse(
@@ -78,12 +77,13 @@ class GroqProvider(LLMProvider):
                         output_tokens=usage.get("completion_tokens"),
                     )
                 except httpx.HTTPStatusError as exc:
-                    if exc.response.status_code == 404 and "model" in exc.response.text.lower():
+                    if exc.response.status_code in (400, 404, 429) and ("model" in exc.response.text.lower() or "rate" in exc.response.text.lower()):
+                        last_error = exc
                         continue
                     last_error = exc
                     break
                 except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
                     last_error = exc
-                    break
+                    continue
 
         raise ProviderError(f"Groq provider failed: {last_error or 'all models returned 404'}")

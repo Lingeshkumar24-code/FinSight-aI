@@ -7,6 +7,15 @@ import httpx
 from .base import CompletionRequest, CompletionResponse, LLMProvider, ProviderError
 
 
+_OPENROUTER_FALLBACK_MODELS = [
+    "deepseek/deepseek-chat:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemini-2.0-flash-exp:free",
+    "qwen/qwen-2.5-72b-instruct:free",
+    "meta-llama/llama-3.1-8b-instruct:free",
+]
+
+
 class OpenRouterProvider(LLMProvider):
     """OpenRouter exposes an OpenAI-compatible chat completions API that
     fans out to many underlying models — used here as the "catch-all"
@@ -17,11 +26,11 @@ class OpenRouterProvider(LLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "meta-llama/llama-3.1-8b-instruct:free",
-        timeout: float = 20.0,
+        model: str = "deepseek/deepseek-chat:free",
+        timeout: float = 25.0,
     ) -> None:
-        self.api_key = api_key
-        self.model = model
+        self.api_key = (api_key or "").strip()
+        self.model = (model or "deepseek/deepseek-chat:free").strip()
         self.timeout = timeout
         self._base_url = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -31,38 +40,58 @@ class OpenRouterProvider(LLMProvider):
             messages.append({"role": "system", "content": request.system})
         messages.append({"role": "user", "content": request.prompt})
 
+        models_to_try = [self.model] + [m for m in _OPENROUTER_FALLBACK_MODELS if m != self.model]
         started = time.perf_counter()
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(
-                    self._base_url,
-                    headers={"Authorization": f"Bearer {self.api_key}"},
-                    json={
-                        "model": self.model,
-                        "messages": messages,
-                        "temperature": request.temperature,
-                        "max_tokens": request.max_tokens,
-                    },
-                )
-            resp.raise_for_status()
-            data = resp.json()
-            text = data["choices"][0]["message"].get("content")
-            usage = data.get("usage", {})
-        except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-            raise ProviderError(f"OpenRouter provider failed: {exc}") from exc
+        last_error: Exception | None = None
 
-        if not isinstance(text, str) or not text.strip():
-            # Some free models answer with null content (e.g. only a
-            # reasoning trace). Treat it as a provider failure so the
-            # router fails over instead of shipping an empty answer.
-            raise ProviderError("OpenRouter returned an empty completion")
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "HTTP-Referer": "https://finsight-frontend-2w1v.onrender.com",
+            "X-Title": "FinSight AI",
+            "Content-Type": "application/json",
+        }
 
-        latency_ms = (time.perf_counter() - started) * 1000
-        return CompletionResponse(
-            text=text,
-            provider=self.name,
-            model=self.model,
-            latency_ms=latency_ms,
-            input_tokens=usage.get("prompt_tokens"),
-            output_tokens=usage.get("completion_tokens"),
-        )
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            for model_name in models_to_try:
+                try:
+                    resp = await client.post(
+                        self._base_url,
+                        headers=headers,
+                        json={
+                            "model": model_name,
+                            "messages": messages,
+                            "temperature": request.temperature,
+                            "max_tokens": request.max_tokens,
+                        },
+                    )
+                    if resp.status_code in (400, 404, 429) or "rate" in resp.text.lower():
+                        continue
+
+                    resp.raise_for_status()
+                    data = resp.json()
+                    text = data.get("choices", [{}])[0].get("message", {}).get("content")
+                    usage = data.get("usage", {})
+
+                    if not isinstance(text, str) or not text.strip():
+                        continue
+
+                    latency_ms = (time.perf_counter() - started) * 1000
+                    return CompletionResponse(
+                        text=text,
+                        provider=self.name,
+                        model=model_name,
+                        latency_ms=latency_ms,
+                        input_tokens=usage.get("prompt_tokens"),
+                        output_tokens=usage.get("completion_tokens"),
+                    )
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code in (400, 404, 429):
+                        last_error = exc
+                        continue
+                    last_error = exc
+                    break
+                except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
+                    last_error = exc
+                    continue
+
+        raise ProviderError(f"OpenRouter provider failed: {last_error or 'all models exhausted'}")
