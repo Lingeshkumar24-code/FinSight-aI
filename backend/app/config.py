@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     N8N_SHARED_SECRET: str = "finsight-n8n-secret"
 
     # --- Market data (Twelve Data) ---
-    TWELVEDATA_API_KEY: str = ""
+    TWELVEDATA_API_KEY: str = "839a60cc045e43a18dbba1a175907858"
     TWELVEDATA_BASE_URL: str = "https://api.twelvedata.com"
     # Comma-separated benchmark watchlist shown on the Market Data page. The
     # free plan costs one credit per symbol with 8 credits/minute, so the
