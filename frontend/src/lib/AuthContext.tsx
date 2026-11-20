@@ -6,6 +6,9 @@ interface AuthState {
   businessId: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, fullName?: string, businessName?: string) => Promise<void>;
+  sendOtp: (email: string, purpose?: "login" | "register" | "reset") => Promise<any>;
+  loginWithOtp: (email: string, otp: string, fullName?: string, businessName?: string) => Promise<void>;
+  resetPassword: (email: string, otp: string, newPassword: string) => Promise<void>;
   logout: () => void;
   error: string | null;
 }
@@ -48,6 +51,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const sendOtp = useCallback(async (email: string, purpose: "login" | "register" | "reset" = "login") => {
+    setError(null);
+    try {
+      return await api.sendOtp(email, purpose);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to send verification code");
+      throw err;
+    }
+  }, []);
+
+  const loginWithOtp = useCallback(
+    async (email: string, otp: string, fullName?: string, businessName?: string) => {
+      setError(null);
+      try {
+        const resp = await api.verifyOtp({ email, otp, full_name: fullName, business_name: businessName });
+        setAuthToken(resp.access_token);
+        localStorage.setItem("finsight_business_id", resp.business_id);
+        setBusinessId(resp.business_id);
+        setIsAuthenticated(true);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Verification failed");
+        throw err;
+      }
+    },
+    []
+  );
+
+  const resetPassword = useCallback(async (email: string, otp: string, newPassword: string) => {
+    setError(null);
+    try {
+      await api.resetPassword({ email, otp, new_password: newPassword });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Password reset failed");
+      throw err;
+    }
+  }, []);
+
   const logout = useCallback(() => {
     setAuthToken(null);
     localStorage.removeItem("finsight_business_id");
@@ -56,7 +96,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, businessId, login, register, logout, error }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        businessId,
+        login,
+        register,
+        sendOtp,
+        loginWithOtp,
+        resetPassword,
+        logout,
+        error,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -32,6 +32,34 @@ class MeResponse(BaseModel):
     role: str
 
 
+class SendOtpRequest(BaseModel):
+    email: str
+    purpose: str = "login"  # login | register | reset
+
+
+class SendOtpResponse(BaseModel):
+    status: str = "success"
+    message: str
+    email: str
+    expires_in_seconds: int = 600
+    mode: str = "resend"
+    dev_otp: str | None = None
+
+
+class VerifyOtpRequest(BaseModel):
+    email: str
+    otp: str
+    purpose: str = "login"
+    full_name: str = ""
+    business_name: str = ""
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
+
 # ---------------------------------------------------------------------------
 # Budget Variance
 # ---------------------------------------------------------------------------

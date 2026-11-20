@@ -49,21 +49,22 @@ def chunk_document(
 
             lines = para.splitlines()
             if len(lines) > 1:
-                cur_lines: list[str] = []
-                cur_len = 0
+                doc_stem = source.rsplit(".", 1)[0].replace("_", " ").strip()
+                context_prefix = f"[{doc_stem} | {current_location}] " if current_location else f"[{doc_stem}] "
+                cur_lines: list[str] = [context_prefix.strip()] if context_prefix else []
+                cur_len = len(cur_lines[0]) if cur_lines else 0
                 header = lines[0] if marker_re.search(lines[0]) else ""
                 col_header = lines[1] if (len(lines) > 1 and lines[1].startswith("Row 1:")) else ""
-                context_prefix = f"[{current_location}] " if current_location else ""
 
                 for line in lines:
                     line_len = len(line) + 1
                     if cur_len + line_len > max_chars and cur_lines:
                         raw_chunks.append(("\n".join(cur_lines), current_location))
-                        cur_lines = []
-                        cur_len = 0
+                        cur_lines = [context_prefix.strip()] if context_prefix else []
+                        cur_len = len(cur_lines[0]) if cur_lines else 0
                         if col_header and line != col_header and line != header:
                             cur_lines.append(f"{context_prefix}{col_header} (cont.)")
-                            cur_len += len(cur_lines[0]) + 1
+                            cur_len += len(cur_lines[-1]) + 1
 
                     if line_len > max_chars:
                         start = 0

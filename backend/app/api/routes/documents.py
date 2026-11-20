@@ -10,12 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_vector_store
 from app.config import Settings, get_settings
 from app.core.security import TokenPayload, get_current_user
-from app.db.models import Business, Document, DocumentChunkRow
+from app.db.extensions import CashFlowRecord
+from app.db.models import Business, Document, DocumentChunkRow, FinancialRecord
 from app.db.session import get_session
 from app.models.schemas import DocumentListItem, DocumentUploadResponse
 from app.rag.ingestion import chunk_document
 from app.rag.vectorstore import VectorStore
 from app.services.document_extraction import extract_document
+from app.services.financial_extractor import extract_financial_records_from_workbook
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -108,7 +110,8 @@ async def upload_document(
     # Ensure parent business workspace exists in database
     biz = (await session.execute(select(Business).where(Business.id == user.business_id))).scalar_one_or_none()
     if not biz:
-        session.add(Business(id=user.business_id, name="User Workspace", currency="INR"))
+        biz = Business(id=user.business_id, name="User Workspace", currency="INR")
+        session.add(biz)
         await session.flush()
 
     document_id = str(uuid.uuid4())
@@ -145,6 +148,70 @@ async def upload_document(
                 for chunk in chunks
             ],
         )
+
+    # 4. Extract structured financial statements and populate user's business records
+    try:
+        company_name, fin_records, cashflows = extract_financial_records_from_workbook(raw, filename)
+        # Only ingest structured financial records if this is a comprehensive statement
+        # (multi-period or contains balance sheet assets), so tiny 1-line text-chunk tests don't wipe demo records.
+        if fin_records and (len(fin_records) >= 2 or any(r.get("total_assets") for r in fin_records)):
+            if company_name and (biz.name in ("User Workspace", "My Business", "Sharma Enterprises Pvt Ltd", "Acme Global Holdings") or not biz.name):
+                biz.name = company_name
+
+            # Remove demo/seed records so user dashboard reflects uploaded corporate filings
+            await session.execute(
+                delete(FinancialRecord).where(
+                    FinancialRecord.business_id == user.business_id,
+                    FinancialRecord.source == "demo",
+                )
+            )
+
+            for rec_data in fin_records:
+                existing = (
+                    await session.execute(
+                        select(FinancialRecord).where(
+                            FinancialRecord.business_id == user.business_id,
+                            FinancialRecord.period == rec_data["period"],
+                        )
+                    )
+                ).scalar_one_or_none()
+                if existing:
+                    for k, v in rec_data.items():
+                        setattr(existing, k, v)
+                    existing.source = "uploaded"
+                    existing.verified = True
+                    existing.source_document_id = document_id
+                else:
+                    session.add(
+                        FinancialRecord(
+                            business_id=user.business_id,
+                            source="uploaded",
+                            verified=True,
+                            source_document_id=document_id,
+                            **rec_data,
+                        )
+                    )
+
+            if cashflows:
+                await session.execute(
+                    delete(CashFlowRecord).where(CashFlowRecord.business_id == user.business_id)
+                )
+                for cf in cashflows:
+                    session.add(
+                        CashFlowRecord(
+                            business_id=user.business_id,
+                            period=cf["period"],
+                            opening_cash=0.0,
+                            operating_inflow=cf.get("inflow", 0.0),
+                            operating_outflow=cf.get("outflow", 0.0),
+                            closing_cash=cf.get("closing_cash", 0.0),
+                            notes=f"Extracted from {filename}",
+                        )
+                    )
+    except Exception:
+        # Never break document upload if structured statement extraction encounters an anomaly
+        pass
+
     await session.commit()
     vector_store.upsert(chunks)
 

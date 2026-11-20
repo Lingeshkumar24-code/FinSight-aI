@@ -28,6 +28,10 @@ services:
         value: SPY,QQQ,TLT,GLD,BTC/USD
       - key: MARKET_MAX_SYMBOLS
         value: "6"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: FinSight AI <onboarding@resend.dev>
 
   # Frontend Static Site
   - type: web

@@ -90,6 +90,15 @@ export interface LoginResponse {
   business_id: string;
 }
 
+export interface SendOtpResponse {
+  status: string;
+  message: string;
+  email: string;
+  expires_in_seconds: number;
+  mode: string;
+  dev_otp?: string;
+}
+
 export interface RatioOut {
   name: string;
   value: number | null;
@@ -631,6 +640,30 @@ export const api = {
 
   register: (payload: { email: string; password: string; full_name?: string; business_name?: string }) =>
     request<LoginResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  sendOtp: (email: string, purpose: "login" | "register" | "reset" = "login") =>
+    request<SendOtpResponse>("/auth/otp/send", {
+      method: "POST",
+      body: JSON.stringify({ email, purpose }),
+    }),
+
+  verifyOtp: (payload: {
+    email: string;
+    otp: string;
+    purpose?: "login" | "register";
+    full_name?: string;
+    business_name?: string;
+  }) =>
+    request<LoginResponse>("/auth/otp/verify", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  resetPassword: (payload: { email: string; otp: string; new_password: string }) =>
+    request<{ status: string; message: string }>("/auth/reset-password", {
       method: "POST",
       body: JSON.stringify(payload),
     }),

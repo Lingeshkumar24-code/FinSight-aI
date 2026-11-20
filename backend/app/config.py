@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 60 * 24
     ALLOW_DEMO_AUTH: bool = True
 
+    # --- Resend Email (OTP & Notifications) ---
+    RESEND_API_KEY: str = ""
+    RESEND_FROM_EMAIL: str = "FinSight AI <onboarding@resend.dev>"
+
     # --- Database (Supabase Postgres in prod; SQLite for local/dev/tests) ---
     DATABASE_URL: str = "sqlite+aiosqlite:///./finsight.db"
 

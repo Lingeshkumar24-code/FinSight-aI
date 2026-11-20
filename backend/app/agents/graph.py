@@ -71,6 +71,9 @@ _FINANCE_SIGNALS = (
     "ratio", "liquidity", "solvency", "risk", "rate",
     "borrow", "borrowing", "lending", "credit", "plan", "fund", "funds",
     "invest", "investment", "investing", "stock", "stocks", "market", "portfolio", "shares",
+    "vendor", "supplier", "customer", "client", "dependency", "concentration",
+    "operational", "operations", "notes", "file", "workbook", "attachment", "memo",
+    "sales", "turnover", "invoiced", "business", "company", "audit",
 )
 
 
@@ -115,6 +118,13 @@ def understand_query(state: AgentState) -> dict[str, Any]:
     if match:
         n, unit = int(match.group(1)), match.group(2)
         params["periods_ahead"] = n * (3 if unit == "quarter" else 1)
+
+    # If the user is asking to summarize or query their uploaded workbook/document,
+    # route to general_rag (Agentic RAG) instead of an engine that requires strict numeric parameters.
+    doc_signals = ("uploaded", "workbook", "document", "file", "memo", "attachment", "statement based on", "from the uploaded")
+    if any(sig in query for sig in doc_signals) and not any(k in params for k in ("budget", "actual", "income_statement", "balance_sheet", "levers", "series")):
+        best_intent = "general_rag"
+        confidence = 0.95
 
     # -- Off-topic guard pass 2: for general_rag (no strong financial intent),
     # check at least one finance signal is present in the query. If none, it's
@@ -287,6 +297,8 @@ def make_execute_tool(retriever: Retriever | None):
         errors = list(state.get("errors", []))
 
         if route == "rag:retrieve":
+            if params.get("_off_topic"):
+                return {"tool_result": {}, "rag_citations": [], "errors": errors}
             if retriever is None:
                 return {"tool_result": {}, "rag_citations": [], "errors": errors + ["no retriever configured"]}
             from app.rag.agentic_rag import AgenticRAGEngine
@@ -308,23 +320,6 @@ def make_execute_tool(retriever: Retriever | None):
             return {"tool_result": {}, "errors": errors + [f"no executor for route '{route}'"]}
 
         result, exec_errors = executor(params)
-        # If the financial calculation engine is missing structured parameters,
-        # but documents have been indexed and a retriever is active, fall back to RAG
-        # so questions like "What does the Q3 memo state about revenue?" get answered
-        # from document context instead of stalling on empty engine inputs.
-        rag_requested = any(
-            term in state.get("user_query", "").lower()
-            for term in ("document", "uploaded", "file", "report", "memo", "according to")
-        )
-        if exec_errors and retriever is not None and rag_requested:
-            context = retriever.retrieve(state.get("user_query", ""))
-            if context.combined_text:
-                return {
-                    "tool_result": {"context": context.combined_text},
-                    "rag_citations": context.citations,
-                    "errors": errors,
-                }
-
         return {"tool_result": result, "errors": errors + exec_errors}
 
     return execute_tool
@@ -401,7 +396,7 @@ def _template_response(state: AgentState) -> str:
         except (TypeError, ValueError):
             pass
     for k, v in result.items():
-        if k == "context":
+        if k in ("context", "agentic_decision", "intent", "structured_metrics"):
             continue
         if isinstance(v, list):
             if v and not isinstance(v[0], dict):

@@ -799,7 +799,7 @@ html { scroll-behavior: smooth; }
 .auth-hero p { color: #D7D0C1; }.auth-bubble { background: rgba(255,254,250,.1); border-color: rgba(245,241,232,.22); }
 .auth-orb.o1 { background: #A58A62; }.auth-orb.o2 { background: #77736B; }.auth-orb.o3 { background: #526B43; }
 .auth-panel { background: #F5F1E8; }.auth-card h1 { color: #171717; }
-.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #DCD6CA; border-radius: 12px; padding: 4px; margin-top: 22px; }
+.auth-tabs { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #DCD6CA; border-radius: 12px; padding: 4px; margin-top: 22px; gap: 4px; }
 .auth-tabs button { border: 0; background: transparent; min-height: 40px; border-radius: 8px; color: #77736B; cursor: pointer; font-weight: 700; }
 .auth-tabs button.active { background: #171717; color: #F5F1E8; }
 .auth-link { border: 0; background: transparent; color: #77736B; text-align: center; cursor: pointer; font: inherit; margin-top: 8px; }
