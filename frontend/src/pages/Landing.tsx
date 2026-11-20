@@ -865,20 +865,77 @@ export function Landing() {
             <h2>From financial information to confident action.</h2>
           </div>
           <div className="steps-grid">
-            <article>
-              <b>01</b>
-              <h3>Connect or upload</h3>
-              <p>Add 20+ sheet Excel workbooks, invoices, or bank records to your workspace in 3 seconds.</p>
+            <article style={{ display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+                <b>01</b>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#16845B", background: "rgba(22, 132, 91, 0.15)", padding: "2px 8px", borderRadius: 12, border: "1px solid rgba(22, 132, 91, 0.3)" }}>
+                  ⚡ 3.4s Rapid Ingest
+                </span>
+              </div>
+              <div style={{ background: "rgba(255, 255, 255, 0.04)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: 12, padding: "14px 16px", marginBottom: 18 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 24 }}>📂</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#F5F1E8" }}>Multi-Sheet Reader</div>
+                    <div style={{ fontSize: 11, color: "#8E887E" }}>XLSX · CSV · DOCX · PDF</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 10, background: "rgba(245, 241, 232, 0.08)", color: "#C0BAAE", padding: "2px 6px", borderRadius: 4 }}>Balance Sheet</span>
+                  <span style={{ fontSize: 10, background: "rgba(245, 241, 232, 0.08)", color: "#C0BAAE", padding: "2px 6px", borderRadius: 4 }}>Annual P&amp;L</span>
+                  <span style={{ fontSize: 10, background: "rgba(245, 241, 232, 0.08)", color: "#C0BAAE", padding: "2px 6px", borderRadius: 4 }}>Invoices</span>
+                </div>
+              </div>
+              <h3 style={{ margin: "0 0 10px 0" }}>Connect or upload</h3>
+              <p style={{ margin: 0 }}>Add 20+ sheet Excel workbooks, invoices, or bank records to your workspace in 3 seconds.</p>
             </article>
-            <article>
-              <b>02</b>
-              <h3>Let AI analyze</h3>
-              <p>FinSight calculates loan capacity, profit margins, and flags cash leaks with verified citations.</p>
+
+            <article style={{ display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+                <b>02</b>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#3B82F6", background: "rgba(59, 130, 246, 0.15)", padding: "2px 8px", borderRadius: 12, border: "1px solid rgba(59, 130, 246, 0.3)" }}>
+                  🧠 Multi-Agent RAG
+                </span>
+              </div>
+              <div style={{ background: "rgba(255, 255, 255, 0.04)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: 12, padding: "14px 16px", marginBottom: 18 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 20 }}>📊</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#F5F1E8" }}>Financial Deliberation</span>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#10B981" }}>+37.2% Margin</span>
+                </div>
+                <div style={{ fontSize: 11, color: "#8E887E", display: "flex", justifyContent: "space-between" }}>
+                  <span>Debt Capacity: ₹30,00,000</span>
+                  <span style={{ color: "#3B82F6", fontWeight: 600 }}>100% Verified Citations</span>
+                </div>
+              </div>
+              <h3 style={{ margin: "0 0 10px 0" }}>Let AI analyze</h3>
+              <p style={{ margin: 0 }}>FinSight calculates loan capacity, profit margins, and flags cash leaks with verified citations.</p>
             </article>
-            <article>
-              <b>03</b>
-              <h3>Act with clarity</h3>
-              <p>Move What-If sliders to test decisions before spending money, and stay protected 24/7.</p>
+
+            <article style={{ display: "flex", flexDirection: "column" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+                <b>03</b>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#10B981", background: "rgba(16, 185, 129, 0.15)", padding: "2px 8px", borderRadius: 12, border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                  🛡️ 24/7 Watchdog
+                </span>
+              </div>
+              <div style={{ background: "rgba(255, 255, 255, 0.04)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: 12, padding: "14px 16px", marginBottom: 18 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 20 }}>🎚️</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#F5F1E8" }}>Causal What-If Levers</span>
+                  </div>
+                  <span style={{ fontSize: 10, background: "rgba(16, 185, 129, 0.2)", color: "#10B981", padding: "1px 6px", borderRadius: 4 }}>Zero Risk</span>
+                </div>
+                <div style={{ fontSize: 11, color: "#8E887E", display: "flex", justifyContent: "space-between" }}>
+                  <span>Runway Simulation: 12 Mo</span>
+                  <span style={{ color: "#F59E0B", fontWeight: 600 }}>Instant Webhooks</span>
+                </div>
+              </div>
+              <h3 style={{ margin: "0 0 10px 0" }}>Act with clarity</h3>
+              <p style={{ margin: 0 }}>Move What-If sliders to test decisions before spending money, and stay protected 24/7.</p>
             </article>
           </div>
         </section>

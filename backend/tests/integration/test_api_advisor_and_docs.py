@@ -180,3 +180,50 @@ def test_report_generation_returns_pdf(client, auth_headers):
     assert resp.headers["content-type"] == "application/pdf"
     assert resp.content[:4] == b"%PDF"
     assert len(resp.content) > 100
+
+
+def test_document_crud_lifecycle_and_isolation(client, auth_headers):
+    # 1. Upload file
+    upload_resp = client.post(
+        "/api/v1/documents/upload",
+        headers=auth_headers,
+        files={"file": ("balance_sheet_2026.txt", io.BytesIO(b"Cash: Rs 500000. Liabilities: Rs 200000."), "text/plain")},
+    )
+    assert upload_resp.status_code == 200
+    doc_id = upload_resp.json()["document_id"]
+
+    # 2. List documents (READ in CRUD)
+    list_resp = client.get("/api/v1/documents", headers=auth_headers)
+    assert list_resp.status_code == 200
+    docs = list_resp.json()
+    assert any(d["id"] == doc_id for d in docs)
+
+    # 3. Delete document (DELETE in CRUD)
+    del_resp = client.delete(f"/api/v1/documents/{doc_id}", headers=auth_headers)
+    assert del_resp.status_code == 200
+    assert del_resp.json()["success"] is True
+
+    # 4. Verify document is deleted
+    re_list = client.get("/api/v1/documents", headers=auth_headers)
+    assert not any(d["id"] == doc_id for d in re_list.json())
+
+
+def test_register_creates_distinct_user_and_isolated_workspace(client):
+    email = "newcfo@enterprise.com"
+    reg_resp = client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": "securepassword123", "full_name": "New CFO"},
+    )
+    assert reg_resp.status_code == 200
+    data = reg_resp.json()
+    token = data["access_token"]
+    biz_id = data["business_id"]
+    user_id = data["user_id"]
+    assert biz_id.startswith("biz-")
+    assert user_id != ""
+
+    headers = {"Authorization": f"Bearer {token}"}
+    # Verify new user has an isolated workspace with empty documents list initially
+    docs_resp = client.get("/api/v1/documents", headers=headers)
+    assert docs_resp.status_code == 200
+    assert docs_resp.json() == []

@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from "react";
-import { api, ApiError, type AdvisorResponse, type DocumentUploadResponse } from "../lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, ApiError, type AdvisorResponse, type DocumentListItem, type DocumentUploadResponse } from "../lib/api";
 import { Card } from "../components/ui/Card";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -68,6 +68,40 @@ export function Upload() {
   const [result, setResult] = useState<DocumentUploadResponse | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Document history state
+  const [historyDocs, setHistoryDocs] = useState<DocumentListItem[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadDocuments = useCallback(async () => {
+    setLoadingDocs(true);
+    try {
+      const docs = await api.getDocuments();
+      setHistoryDocs(docs);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingDocs(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadDocuments();
+  }, [loadDocuments]);
+
+  async function handleDelete(docId: string, filename: string) {
+    if (!window.confirm(`Are you sure you want to delete "${filename}" and its indexed vector records from your workspace?`)) return;
+    setDeletingId(docId);
+    try {
+      await api.deleteDocument(docId);
+      await loadDocuments();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Failed to delete document");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   // AI Q&A state
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
@@ -123,6 +157,7 @@ export function Upload() {
     try {
       const resp = await api.uploadDocument(selectedFile);
       setResult(resp);
+      void loadDocuments();
       // Mark indexing complete immediately. The optional AI summary is a
       // separate LLM request and must not make a successful upload look
       // stuck on "Chunking & Vectorising" when a provider is slow or rate
@@ -476,6 +511,144 @@ export function Upload() {
           )}
         </Card>
       )}
+
+      {/* Workspace Document History & CRUD */}
+      <Card>
+        <div className="section-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h2>📁 Workspace Document History</h2>
+            <span className="section-run">Supabase Database &amp; Vector Index</span>
+          </div>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "3px 10px",
+              borderRadius: 20,
+              background: historyDocs.length > 0 ? "#EAF4EE" : "#F3F4F6",
+              color: historyDocs.length > 0 ? "#16845B" : "#6B7280",
+            }}
+          >
+            {historyDocs.length} {historyDocs.length === 1 ? "document" : "documents"} indexed
+          </span>
+        </div>
+
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", marginTop: 4, marginBottom: 16 }}>
+          All corporate filings, statements, and spreadsheets uploaded to this workspace. The AI Advisor automatically queries these files for verified citations.
+        </p>
+
+        {loadingDocs && historyDocs.length === 0 ? (
+          <div style={{ padding: "20px 0", textAlign: "center", color: "var(--ink-muted)", fontSize: 13 }}>
+            Loading workspace documents…
+          </div>
+        ) : historyDocs.length === 0 ? (
+          <div
+            style={{
+              padding: "24px 16px",
+              textAlign: "center",
+              background: "var(--surface-raised, #F9F6F0)",
+              borderRadius: 10,
+              border: "1px dashed var(--border)",
+            }}
+          >
+            <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: "var(--ink)" }}>
+              No documents in your workspace yet.
+            </p>
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--ink-soft)" }}>
+              Drag &amp; drop an Excel workbook (.xlsx), invoice, or financial statement above to start building your private knowledge base.
+            </p>
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: "1.5px solid var(--border)", textAlign: "left", color: "var(--ink-soft)", fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <th style={{ padding: "10px 8px" }}>Document</th>
+                  <th style={{ padding: "10px 8px" }}>Chunks</th>
+                  <th style={{ padding: "10px 8px" }}>Status</th>
+                  <th style={{ padding: "10px 8px" }}>Uploaded</th>
+                  <th style={{ padding: "10px 8px", textAlign: "right" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyDocs.map((doc) => (
+                  <tr key={doc.id} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.15s ease" }}>
+                    <td style={{ padding: "12px 8px", fontWeight: 600, color: "var(--ink)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span>📄</span>
+                        <span style={{ wordBreak: "break-all" }}>{doc.filename}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "12px 8px", color: "var(--ink-soft)" }}>
+                      {doc.chunks_indexed} {doc.chunks_indexed === 1 ? "chunk" : "chunks"}
+                    </td>
+                    <td style={{ padding: "12px 8px" }}>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: "2px 8px",
+                          borderRadius: 12,
+                          background: doc.status === "processed" ? "#EAF4EE" : "#FEF3C7",
+                          color: doc.status === "processed" ? "#16845B" : "#B45309",
+                        }}
+                      >
+                        {doc.status === "processed" ? "Active" : doc.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: "12px 8px", color: "var(--ink-muted)", fontSize: 12 }}>
+                      {doc.created_at ? new Date(doc.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                    </td>
+                    <td style={{ padding: "12px 8px", textAlign: "right" }}>
+                      <div style={{ display: "inline-flex", gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuestion(`Summarize the financial data in ${doc.filename}`);
+                            void askQuestion(`Summarize the financial data in ${doc.filename}`);
+                          }}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            borderRadius: 6,
+                            background: "#EFF6FF",
+                            border: "1px solid #BFDBFE",
+                            color: "#1D4ED8",
+                            cursor: "pointer",
+                          }}
+                          title="Ask AI Advisor about this file"
+                        >
+                          💬 Ask AI
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deletingId === doc.id}
+                          onClick={() => void handleDelete(doc.id, doc.filename)}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            borderRadius: 6,
+                            background: "#FEF2F2",
+                            border: "1px solid #FECACA",
+                            color: "#DC2626",
+                            cursor: deletingId === doc.id ? "not-allowed" : "pointer",
+                            opacity: deletingId === doc.id ? 0.5 : 1,
+                          }}
+                          title="Delete from workspace"
+                        >
+                          {deletingId === doc.id ? "…" : "🗑️ Delete"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
 
       {/* How-to guide */}
       <Card>

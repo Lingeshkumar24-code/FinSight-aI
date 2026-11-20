@@ -12,10 +12,18 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    full_name: str = ""
+    business_name: str = ""
+
+
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     business_id: str
+    user_id: str = ""
 
 
 class MeResponse(BaseModel):
@@ -229,6 +237,14 @@ class AdvisorResponse(BaseModel):
 class DocumentUploadResponse(BaseModel):
     document_id: str
     source: str
+    chunks_indexed: int
+
+
+class DocumentListItem(BaseModel):
+    id: str
+    filename: str
+    status: str
+    created_at: str
     chunks_indexed: int
 
 

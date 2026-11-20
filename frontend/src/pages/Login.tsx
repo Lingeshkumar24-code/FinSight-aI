@@ -22,7 +22,7 @@ const EXPRESSION: Record<Phase, AssistantExpression> = {
 };
 
 export function Login() {
-  const { login, error, isAuthenticated } = useAuth();
+  const { login, register, error, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const initialMode = params.get("mode") === "register" ? "register" : params.get("mode") === "forgot" ? "forgot" : "login";
@@ -56,7 +56,11 @@ export function Login() {
     }
     setPhase("submitting");
     try {
-      await login(email, password);
+      if (mode === "register") {
+        await register(email, password, fullName);
+      } else {
+        await login(email, password);
+      }
       setPhase("success");
     } catch {
       // message is surfaced by the auth context

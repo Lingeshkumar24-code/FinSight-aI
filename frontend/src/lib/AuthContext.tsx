@@ -5,6 +5,7 @@ interface AuthState {
   isAuthenticated: boolean;
   businessId: string | null;
   login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, fullName?: string, businessName?: string) => Promise<void>;
   logout: () => void;
   error: string | null;
 }
@@ -33,6 +34,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const register = useCallback(async (email: string, password: string, fullName?: string, businessName?: string) => {
+    setError(null);
+    try {
+      const resp = await api.register({ email, password, full_name: fullName, business_name: businessName });
+      setAuthToken(resp.access_token);
+      localStorage.setItem("finsight_business_id", resp.business_id);
+      setBusinessId(resp.business_id);
+      setIsAuthenticated(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Registration failed");
+      throw err;
+    }
+  }, []);
+
   const logout = useCallback(() => {
     setAuthToken(null);
     localStorage.removeItem("finsight_business_id");
@@ -41,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, businessId, login, logout, error }}>
+    <AuthContext.Provider value={{ isAuthenticated, businessId, login, register, logout, error }}>
       {children}
     </AuthContext.Provider>
   );

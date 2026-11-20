@@ -139,6 +139,14 @@ export interface DocumentUploadResponse {
   chunks_indexed: number;
 }
 
+export interface DocumentListItem {
+  id: string;
+  filename: string;
+  status: string;
+  created_at: string;
+  chunks_indexed: number;
+}
+
 export interface DashboardSummary {
   available: boolean;
   message?: string;
@@ -621,6 +629,12 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
 
+  register: (payload: { email: string; password: string; full_name?: string; business_name?: string }) =>
+    request<LoginResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   getRatios: (balanceSheet: Record<string, number>, incomeStatement: Record<string, number>) =>
     request<{ ratios: RatioOut[] }>("/financials/ratios", {
       method: "POST",
@@ -943,6 +957,13 @@ export const api = {
       body: formData,
     });
   },
+
+  getDocuments: () => request<DocumentListItem[]>("/documents"),
+
+  deleteDocument: (documentId: string) =>
+    request<{ success: boolean; deleted_id: string; filename?: string }>(`/documents/${documentId}`, {
+      method: "DELETE",
+    }),
 
   generateReport: (payload: {
     business_name: string;

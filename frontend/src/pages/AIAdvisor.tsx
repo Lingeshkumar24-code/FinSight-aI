@@ -38,16 +38,38 @@ export function AIAdvisor() {
   }
 
   return (
-    <div style={{ maxWidth: 840, display: "flex", flexDirection: "column", height: "calc(100vh - 140px)" }}>
-      <div style={{ marginBottom: 16 }}>
-        <h1>AI Financial Advisor</h1>
-        <p className="page-lead">
+    <div style={{ maxWidth: 860, display: "flex", flexDirection: "column", height: "calc(100vh - 190px)", minHeight: 480, maxHeight: 720, paddingBottom: 16 }}>
+      <div style={{ marginBottom: 14 }}>
+        <h1 style={{ marginBottom: 4 }}>AI Financial Advisor</h1>
+        <p className="page-lead" style={{ margin: 0 }}>
           Intelligent multi-agent financial deliberation over uploaded corporate filings and live computations.
         </p>
       </div>
 
-      <Card style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: 16 }}>
-        <div className="chat-log" style={{ flex: 1, overflowY: "auto", border: "none", background: "transparent", padding: 0 }} data-testid="chat-log">
+      <Card
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          borderRadius: 16,
+          border: "1px solid var(--border)",
+          background: "#FFFFFF",
+          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.04)",
+          overflow: "hidden",
+          padding: "20px 24px 20px 24px",
+        }}
+      >
+        <div
+          className="chat-log"
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            border: "none",
+            background: "transparent",
+            padding: "0 0 12px 0",
+          }}
+          data-testid="chat-log"
+        >
           {messages.map((m, i) => (
             <div key={i} className={`chat-bubble ${m.role}`}>
               {m.text}
@@ -64,12 +86,14 @@ export function AIAdvisor() {
           className="chat-form"
           onSubmit={handleSubmit}
           style={{
-            marginTop: 12,
+            marginTop: 14,
             borderTop: "1px solid var(--border)",
-            paddingTop: 14,
+            paddingTop: 16,
+            paddingBottom: 2,
             display: "flex",
             alignItems: "center",
             gap: 10,
+            flexShrink: 0,
           }}
         >
           <input
@@ -79,11 +103,13 @@ export function AIAdvisor() {
             aria-label="Message"
             style={{
               flex: 1,
-              height: 42,
-              borderRadius: "var(--radius-soft)",
-              padding: "0 14px",
+              height: 44,
+              borderRadius: 10,
+              padding: "0 16px",
               boxSizing: "border-box",
-              fontSize: 14,
+              fontSize: 13.5,
+              border: "1.5px solid var(--border)",
+              background: "#FAFAF9",
             }}
           />
           <button
@@ -91,13 +117,15 @@ export function AIAdvisor() {
             type="submit"
             disabled={sending}
             style={{
-              height: 42,
-              padding: "0 22px",
+              height: 44,
+              padding: "0 24px",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              borderRadius: "var(--radius-soft)",
+              borderRadius: 10,
               boxSizing: "border-box",
+              fontSize: 13.5,
+              fontWeight: 600,
             }}
           >
             Send
