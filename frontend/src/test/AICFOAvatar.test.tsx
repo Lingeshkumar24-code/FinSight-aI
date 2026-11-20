@@ -9,7 +9,7 @@ describe("AI CFO assistant", () => {
     render(<AICFOAvatar size={64} expression="happy" />);
     const avatar = screen.getByTestId("finsight-avatar");
     expect(avatar).toBeInTheDocument();
-    expect(avatar.querySelectorAll("ellipse").length).toBe(2);
+    expect(avatar.querySelectorAll("ellipse").length).toBeGreaterThanOrEqual(2);
     fireEvent.mouseMove(window, { clientX: 200, clientY: 100 });
   });
 

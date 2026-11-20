@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { AICFOAvatar } from "../ai/AICFOAvatar";
 
 const LINKS = [
   {
@@ -145,11 +146,13 @@ const LINKS = [
 export function Sidebar() {
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <div className="brand-badge">FS</div>
+      <div className="brand" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <AICFOAvatar size={42} compact />
         <div className="brand-title">
-          <span>FinSight AI</span>
-          <span className="brand-sub">Executive Intelligence</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF" }}>FinSight AI</span>
+          <span className="brand-sub" style={{ fontSize: 10, fontWeight: 600, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            Executive Intelligence
+          </span>
         </div>
       </div>
       <nav>
