@@ -1,7 +1,7 @@
 services:
   # Backend FastAPI Web Service (Free Tier)
   - type: web
-    name: finsight-backend
+    name: finsight-backend-kxfy
     plan: free
     runtime: python
     rootDir: backend
@@ -43,7 +43,7 @@ services:
 
   # Frontend Static Site
   - type: web
-    name: finsight-frontend
+    name: finsight-frontend-2w1v
     runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
@@ -51,11 +51,8 @@ services:
     autoDeploy: true
     routes:
       - type: rewrite
-        source: /api/*
-        destination: https://finsight-backend.onrender.com/api/*
-      - type: rewrite
         source: /*
         destination: /index.html
     envVars:
       - key: VITE_API_BASE_URL
-        value: /api/v1
+        value: https://finsight-backend-kxfy.onrender.com/api/v1

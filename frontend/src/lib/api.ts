@@ -1,7 +1,19 @@
-// Base path for every API call. Vite's dev server proxies `/api` to the
-// backend, so every call is resolved relative to the served origin and
-// forwarded to the backend — no hardcoded host/port the browser must reach.
-const API_PREFIX = (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(/\/$/, "");
+// Base path for every API call.
+// In local dev, Vite proxies `/api` to localhost:8003.
+// When deployed on Render (finsight-frontend-2w1v.onrender.com),
+// or when VITE_API_BASE_URL is provided, direct calls route to the live FastAPI backend.
+function getApiPrefix(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && envUrl.startsWith("http")) {
+    return envUrl.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined" && window.location.hostname.includes("onrender.com")) {
+    return "https://finsight-backend-kxfy.onrender.com/api/v1";
+  }
+  return (envUrl || "/api/v1").replace(/\/$/, "");
+}
+
+const API_PREFIX = getApiPrefix();
 
 export class ApiError extends Error {
   status: number;
