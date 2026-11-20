@@ -60,15 +60,46 @@ export function AIAdvisor() {
           )}
         </div>
 
-        <form className="chat-form" onSubmit={handleSubmit} style={{ marginTop: 12, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+        <form
+          className="chat-form"
+          onSubmit={handleSubmit}
+          style={{
+            marginTop: 12,
+            borderTop: "1px solid var(--border)",
+            paddingTop: 14,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask a question (e.g. Did we overspend on marketing this quarter?)"
             aria-label="Message"
-            style={{ borderRadius: "var(--radius-soft)" }}
+            style={{
+              flex: 1,
+              height: 42,
+              borderRadius: "var(--radius-soft)",
+              padding: "0 14px",
+              boxSizing: "border-box",
+              fontSize: 14,
+            }}
           />
-          <button className="btn btn-primary" type="submit" disabled={sending}>
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={sending}
+            style={{
+              height: 42,
+              padding: "0 22px",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "var(--radius-soft)",
+              boxSizing: "border-box",
+            }}
+          >
             Send
           </button>
         </form>

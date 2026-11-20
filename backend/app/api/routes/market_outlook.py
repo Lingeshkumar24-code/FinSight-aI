@@ -31,6 +31,7 @@ from app.models.schemas_ext import (
     InvestmentOutlookResponse,
     MarketHistory,
     MarketOverview,
+    MarketPricePoint,
     MarketSearchResult,
     MarketUsage,
 )
@@ -62,6 +63,20 @@ def _client_for(api_key: str, base_url: str) -> TwelveDataClient:
 
 def _client(settings: Settings) -> TwelveDataClient:
     return _client_for(settings.TWELVEDATA_API_KEY, settings.TWELVEDATA_BASE_URL)
+
+
+@lru_cache
+def _get_fallback_market_service():
+    from app.services.market_data import (
+        DemoMarketDataProvider,
+        MarketDataService,
+        YahooChartProvider,
+        YFinanceProvider,
+    )
+
+    return MarketDataService(
+        YahooChartProvider(), YFinanceProvider(), DemoMarketDataProvider()
+    )
 
 
 def _clean_symbol(symbol: str) -> str:
@@ -153,10 +168,42 @@ async def market_history(
             detail=f"Unsupported interval: {interval}. Use one of {sorted(_INTERVALS)}.",
         )
     client = _client(settings)
+    if not (symbol.endswith(".NS") or symbol.endswith(".BO")):
+        try:
+            return await client.history(symbol, interval=interval, outputsize=outputsize)
+        except MarketDataError:
+            pass
+
+    # Seamless fallback to internal market service
     try:
-        return await client.history(symbol, interval=interval, outputsize=outputsize)
-    except MarketDataError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        market_service = _get_fallback_market_service()
+        bars, _, _ = await market_service.history(symbol, days=outputsize * 2)
+        if bars:
+            points = [
+                MarketPricePoint(
+                    datetime=b.date,
+                    open=b.open,
+                    high=b.high,
+                    low=b.low,
+                    close=b.close,
+                    volume=int(b.volume) if b.volume else 0,
+                )
+                for b in bars[-outputsize:]
+            ]
+            return MarketHistory(
+                symbol=symbol,
+                interval=interval,
+                currency="INR" if symbol.endswith(".NS") or symbol.endswith(".BO") else "USD",
+                exchange="NSE" if symbol.endswith(".NS") else "BSE" if symbol.endswith(".BO") else "",
+                points=points,
+            )
+    except Exception:
+        pass
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Historical data not available for symbol: {symbol}",
+    )
 
 
 @router.get("/usage", response_model=MarketUsage | None)
@@ -183,12 +230,30 @@ async def market_outlook(
     """
     symbol = _clean_symbol(payload.symbol)
     client = _client(settings)
-    try:
-        history = await client.history(symbol, interval="1day", outputsize=260)
-    except MarketDataError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    closes: list[float] = []
 
-    closes = [p.close for p in history.points if p.close is not None]
+    # If the symbol is not an explicit Indian suffix (.NS / .BO), attempt TwelveData first
+    if not (symbol.endswith(".NS") or symbol.endswith(".BO")):
+        try:
+            history = await client.history(symbol, interval="1day", outputsize=260)
+            closes = [p.close for p in history.points if p.close is not None]
+        except MarketDataError:
+            closes = []
+
+    # If TwelveData failed or symbol is Indian equity (.NS / .BO), fallback to internal market service
+    if not closes:
+        try:
+            market_service = _get_fallback_market_service()
+            bars, _, _ = await market_service.history(symbol, days=365)
+            closes = [b.close for b in bars if b.close is not None]
+        except Exception:
+            closes = []
+
+    if not closes or len(closes) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unable to load sufficient historical price data for {symbol}. Please verify the ticker symbol.",
+        )
     try:
         outlook = _outlook_engine.analyze(
             closes,

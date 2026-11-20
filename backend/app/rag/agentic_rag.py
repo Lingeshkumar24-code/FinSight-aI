@@ -143,8 +143,12 @@ class AgenticRAGEngine:
 
         # 2. Filter noise chunks
         filtered_chunks = self._filter_noise_chunks(targeted_chunks)
-        # Sort by relevance
-        filtered_chunks.sort(key=lambda s: s.score, reverse=True)
+        # Prioritize direct matches to user's query, then sort by relevance score
+        primary_ids = {h.chunk.id for h in primary_hits}
+        filtered_chunks.sort(
+            key=lambda s: (1 if s.chunk.id in primary_ids else 0, s.score),
+            reverse=True,
+        )
         top_chunks = filtered_chunks[:6]
 
         # 3. Build combined text and clean citations

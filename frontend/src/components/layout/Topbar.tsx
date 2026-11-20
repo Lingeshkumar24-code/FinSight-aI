@@ -69,7 +69,8 @@ export function Topbar() {
             display: "inline-flex",
             alignItems: "center",
             gap: 6,
-            padding: "6px 12px",
+            height: 36,
+            padding: "0 12px",
             fontSize: 12,
             fontWeight: 600,
             borderRadius: 8,
@@ -78,6 +79,7 @@ export function Topbar() {
             border: "1px solid #BFDBFE",
             cursor: "pointer",
             transition: "all 0.15s ease",
+            boxSizing: "border-box",
           }}
           title="Explore FinSight AI functions and guided walkthrough"
         >
@@ -89,7 +91,18 @@ export function Topbar() {
         <button
           onClick={() => setIsOpen((prev) => !prev)}
           className="btn btn-secondary"
-          style={{ padding: "7px 12px", position: "relative" }}
+          style={{
+            position: "relative",
+            overflow: "visible",
+            height: 36,
+            width: 38,
+            padding: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxSizing: "border-box",
+            borderRadius: 8,
+          }}
           aria-label="Alerts and Notifications"
           title="Automated n8n Alert Messages"
         >
@@ -101,17 +114,20 @@ export function Topbar() {
             <span
               style={{
                 position: "absolute",
-                top: -4,
-                right: -4,
-                background: "#B91C1C",
+                top: -5,
+                right: -5,
+                background: "#DC2626",
                 color: "#FFFFFF",
                 fontSize: 10,
                 fontWeight: 700,
-                width: 17,
-                height: 17,
+                minWidth: 18,
+                height: 18,
                 borderRadius: "50%",
                 display: "grid",
                 placeItems: "center",
+                border: "2px solid #FFFFFF",
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.25)",
+                zIndex: 10,
               }}
             >
               {unreadCount}
@@ -229,7 +245,11 @@ export function Topbar() {
         <span style={{ fontSize: "12px", color: "var(--ink-muted)", fontWeight: 500 }}>
           Fiscal Q3 · Real-Time Sync
         </span>
-        <button className="btn btn-secondary" onClick={logout}>
+        <button
+          className="btn btn-secondary"
+          onClick={logout}
+          style={{ height: 36, display: "inline-flex", alignItems: "center", padding: "0 14px", boxSizing: "border-box", borderRadius: 8 }}
+        >
           Sign out
         </button>
       </div>

@@ -103,9 +103,9 @@
 .assistant-prompts { display: flex; gap: 6px; overflow-x: auto; padding: 10px 12px 0; }
 .assistant-prompts button { flex: 0 0 auto; font-size: 11px; padding: 5px 9px; border-radius: 999px; border: 1px solid var(--border); background: #FFFFFF; cursor: pointer; color: var(--ink-soft); }
 .assistant-prompts button:hover { border-color: #16845B; color: #123B2A; background: #EAF4EE; }
-.assistant-form { display: flex; gap: 8px; padding: 10px 12px; }
-.assistant-form input { flex: 1; min-width: 0; }
-.assistant-form button { padding: 8px 14px; }
+.assistant-form { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+.assistant-form input { flex: 1; min-width: 0; height: 38px; box-sizing: border-box; }
+.assistant-form button { height: 38px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
 .assistant-disclaimer { margin: 0; padding: 0 12px 10px; font-size: 10px; color: var(--ink-muted); text-align: center; }
 
 .quick-symbols { display: flex; flex-wrap: wrap; gap: 8px; }

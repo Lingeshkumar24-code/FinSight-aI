@@ -186,7 +186,15 @@ export function MarketIntelligence() {
   }, [searchTerm]);
 
   function pickBenchmark(result: MarketSearchResult) {
-    setBenchSymbol(result.symbol);
+    let sym = result.symbol.trim().toUpperCase();
+    if (result.exchange === "NSE" && !sym.endsWith(".NS")) {
+      sym = `${sym}.NS`;
+    } else if (result.exchange === "BSE" && !sym.endsWith(".BO")) {
+      sym = `${sym}.BO`;
+    }
+    setBenchSymbol(sym);
+    setSymbol(sym);
+    setDraftSymbol(sym);
     setSearchTerm("");
     setSearchResults([]);
     setOutlook(null);
@@ -410,7 +418,7 @@ export function MarketIntelligence() {
       </div>
 
       {/* ── Company / Ticker Search ──────────────────────────────────────── */}
-      <Card>
+      <Card style={{ position: "relative", zIndex: 100, overflow: "visible" }}>
         <div className="section-header">
           <h2>Company &amp; Ticker Search</h2>
           <span className="section-run">Twelve Data · cached 1 hour · one credit per query</span>
@@ -419,7 +427,7 @@ export function MarketIntelligence() {
           Search any listed company or ticker (US, Europe, India, crypto, ETFs) and pick it to
           model an investment.
         </p>
-        <div style={{ position: "relative", maxWidth: 420 }}>
+        <div style={{ position: "relative", maxWidth: 460 }}>
           <input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
@@ -428,58 +436,81 @@ export function MarketIntelligence() {
             }}
             placeholder="e.g. apple, NVDA, Reliance, BTC/USD"
             aria-label="Search company or ticker"
-            style={{ width: "100%" }}
+            style={{ width: "100%", height: 42, background: "#FFFFFF", boxSizing: "border-box" }}
           />
           {searchTerm.trim().length >= 2 && (searchResults.length > 0 || searching) && (
             <div
               style={{
                 position: "absolute",
-                top: "calc(100% + 4px)",
+                top: "calc(100% + 6px)",
                 left: 0,
                 right: 0,
-                zIndex: 20,
-                background: "var(--surface-raised, #fff)",
+                zIndex: 9999,
+                background: "#FFFFFF",
                 border: "1px solid var(--border)",
                 borderRadius: "var(--radius-soft, 10px)",
-                boxShadow: "0 12px 28px rgba(15,23,42,0.12)",
-                maxHeight: 280,
+                boxShadow: "0 18px 40px rgba(0, 0, 0, 0.18)",
+                maxHeight: 320,
                 overflowY: "auto",
               }}
             >
               {searching && searchResults.length === 0 && (
-                <div style={{ padding: "10px 12px", fontSize: 12, color: "var(--ink-muted)" }}>
-                  Searching…
+                <div style={{ padding: "12px 14px", fontSize: 13, color: "var(--ink-muted)" }}>
+                  Searching market directory…
                 </div>
               )}
               {searchResults.map((result) => (
                 <button
                   key={`${result.symbol}-${result.exchange}`}
                   type="button"
-                  onClick={() => pickBenchmark(result)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    pickBenchmark(result);
+                  }}
                   style={{
                     display: "block",
                     width: "100%",
                     textAlign: "left",
-                    padding: "8px 12px",
+                    padding: "10px 14px",
                     background: "transparent",
                     border: "none",
+                    borderBottom: "1px solid #F1ECE1",
                     cursor: "pointer",
-                    fontSize: 12.5,
+                    fontSize: 13,
                     color: "var(--ink)",
+                    transition: "background 0.15s ease",
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#F9F6F0")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  <strong>{result.symbol}</strong>{" "}
-                  <span style={{ color: "var(--ink-soft)" }}>{result.name}</span>
-                  <span style={{ display: "block", fontSize: 11, color: "var(--ink-muted)" }}>
-                    {[result.exchange, result.currency, result.instrument_type]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <strong style={{ fontSize: 13.5, color: "#171717" }}>{result.symbol}</strong>
+                    {result.exchange && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: "#16845B",
+                          background: "#EAF4EE",
+                          padding: "2px 7px",
+                          borderRadius: 4,
+                        }}
+                      >
+                        {result.exchange}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "#374151", marginTop: 3, fontWeight: 500, lineHeight: 1.35 }}>
+                    {result.name || result.symbol}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--ink-muted)", marginTop: 2 }}>
+                    {[result.currency, result.instrument_type].filter(Boolean).join(" · ")}
+                  </div>
                 </button>
               ))}
               {!searching && searchResults.length === 0 && (
-                <div style={{ padding: "10px 12px", fontSize: 12, color: "var(--ink-muted)" }}>
-                  No matches.
+                <div style={{ padding: "12px 14px", fontSize: 13, color: "var(--ink-muted)" }}>
+                  No matches found for &ldquo;{searchTerm}&rdquo;.
                 </div>
               )}
             </div>
