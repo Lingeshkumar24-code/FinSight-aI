@@ -289,10 +289,17 @@ def make_execute_tool(retriever: Retriever | None):
         if route == "rag:retrieve":
             if retriever is None:
                 return {"tool_result": {}, "rag_citations": [], "errors": errors + ["no retriever configured"]}
-            context = retriever.retrieve(state.get("user_query", ""))
+            from app.rag.agentic_rag import AgenticRAGEngine
+            agentic_rag = AgenticRAGEngine(retriever)
+            result = agentic_rag.retrieve_and_reason(state.get("user_query", ""))
             return {
-                "tool_result": {"context": context.combined_text},
-                "rag_citations": context.citations,
+                "tool_result": {
+                    "context": result.context.combined_text,
+                    "agentic_decision": result.reasoned_decision,
+                    "structured_metrics": result.structured_metrics,
+                    "intent": result.intent.value,
+                },
+                "rag_citations": result.context.citations,
                 "errors": errors,
             }
 
@@ -403,7 +410,10 @@ def _template_response(state: AgentState) -> str:
             continue
         else:
             lines.append(f"- {k}: {v}")
-    if lines:
+    agentic_decision = result.get("agentic_decision") if isinstance(result, dict) else None
+    if isinstance(agentic_decision, str) and agentic_decision.strip():
+        body = agentic_decision.strip()
+    elif lines:
         body = "\n".join(lines)
     elif isinstance(context, str) and context.strip():
         # RAG-only answers: quote the retrieved passages rather than
@@ -443,11 +453,14 @@ def make_generate_response(llm_router: LLMRouter | None):
             if isinstance(business_context, str) and business_context.strip()
             else ""
         )
+        agentic_decision = state.get("tool_result", {}).get("agentic_decision", "")
+        agentic_section = f"\nExpert Agentic Decision & Verified Figures:\n{agentic_decision}\n" if agentic_decision else ""
 
         prompt = (
             f"User question: {state.get('user_query', '')}\n"
             f"Computed result (JSON-like): {state.get('tool_result', {})}\n"
             f"{business_section}"
+            f"{agentic_section}"
             f"{context_section}"
             f"Validation notes: {state.get('validation_notes', [])}\n\n"
             "Write a concise, plain-language answer for a business owner. "

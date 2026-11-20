@@ -36,7 +36,11 @@ def chunk_document(
     for para in paragraphs:
         marker_match = marker_re.search(para)
         if marker_match:
-            current_location = marker_match.group(1).strip()
+            new_location = marker_match.group(1).strip()
+            if buffer and new_location != current_location:
+                raw_chunks.append((buffer, current_location))
+                buffer = ""
+            current_location = new_location
 
         if len(para) > max_chars:
             if buffer:

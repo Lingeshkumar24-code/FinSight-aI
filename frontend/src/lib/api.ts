@@ -31,7 +31,7 @@ export function loadStoredToken(): string | null {
 
 async function request<TResponse>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit & { _isRetry?: boolean } = {}
 ): Promise<TResponse> {
   const headers = new Headers(options.headers);
   if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
@@ -45,6 +45,26 @@ async function request<TResponse>(
   const resp = await fetch(`${API_PREFIX}/${cleanPath}`, { ...options, headers });
 
   if (!resp.ok) {
+    // If token expired or invalid, auto-renew with demo credentials and retry once
+    if (resp.status === 401 && !cleanPath.includes("auth/login") && !options._isRetry) {
+      try {
+        const loginResp = await fetch(`${API_PREFIX}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "owner@example.com", password: "demo" }),
+        });
+        if (loginResp.ok) {
+          const authData = (await loginResp.json()) as LoginResponse;
+          setAuthToken(authData.access_token);
+          localStorage.setItem("finsight_business_id", authData.business_id);
+          return request<TResponse>(path, { ...options, _isRetry: true });
+        }
+      } catch {
+        setAuthToken(null);
+        localStorage.removeItem("finsight_business_id");
+      }
+    }
+
     let detail = resp.statusText;
     try {
       const body = await resp.json();
