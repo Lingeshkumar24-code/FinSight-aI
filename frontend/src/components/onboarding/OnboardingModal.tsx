@@ -16,91 +16,91 @@ const TOUR_STEPS: TourStep[] = [
   {
     step: 1,
     icon: "📊",
-    badge: "EXECUTIVE DASHBOARD",
-    title: "Financial Performance & Liquidity Overview",
+    badge: "BUSINESS COMMAND CENTER",
+    title: "Financial Health & Cash Runway Overview",
     summary:
-      "Your high-level command center showing live solvency ratios, profitability margins, cash runway, and risk items.",
+      "Your executive dashboard showing profit margins, cash in the bank, bill payment safety, and active loan balances in plain English.",
     details: [
-      "Real-time Core Metrics: Net Margin (18.7%), Gross Margin (61.9%), and Current Ratio (2.20x).",
-      "Cash-Flow Outlook: Projected opening, closing, and burn-rate liquidity balances.",
-      "Multi-Period Ledger: Detailed financial ratios with industry benchmark comparison.",
+      "Real-Time Profitability: 18.7% net profit margin — you keep 18.7 paise of profit for every ₹1 of revenue earned.",
+      "Cash Cushion: ₹23,50,000 in liquid bank reserves gives you 1.5 months of safe operating runway.",
+      "Bill Safety: 2.196x liquidity ratio means ₹2.20 in liquid assets for every ₹1 of upcoming bills.",
     ],
-    sampleOutput: "Optimal Liquidity · 0 Covenant Breaches · 1.5 Months Runway",
+    sampleOutput: "Optimal Liquidity · Zero Missed Loan Payments · 1.5 Months Cash Cushion",
     linkText: "View Dashboard (/)",
   },
   {
     step: 2,
     icon: "📂",
-    badge: "DOCUMENT INGESTION & AGENTIC RAG",
-    title: "20+ Sheet Excel & Multi-Format Document Ingestion",
+    badge: "SPREADSHEET & DOCUMENT READER",
+    title: "Upload Messy Excel Spreadsheets & Invoices",
     summary:
-      "Upload complex 22-sheet financial workbooks, bank statements, or invoices with instant section-aware chunking.",
+      "Upload your multi-sheet Excel workbooks, invoices, or bank records. FinSight reads everything in 3 seconds without complicated formulas.",
     details: [
-      "Ultra-Fast Parsing: Parses 735,000+ characters across 22 sheets in under 3.5 seconds.",
-      "100% Citation Tracking: Tracks exact sheet names (Annual P&L, Balance Sheet, Loan Register, Cash Flow).",
-      "Noise Filtering: Automatically removes template instructions to extract only verified transaction figures.",
+      "Instant Reading: Reads 22 sheets and 735,000+ characters across complex workbooks in under 3.5 seconds.",
+      "100% Verified Citations: Every single calculation points directly back to the exact sheet name and row in your file.",
+      "Cleans the Noise: Automatically ignores blank cells and template text to focus only on real financial figures.",
     ],
-    sampleOutput: "1,151 chunks indexed · 100% sheet source accuracy",
+    sampleOutput: "1,151 data chunks read · 100% sheet source accuracy",
     linkText: "Upload Documents (/upload)",
   },
   {
     step: 3,
     icon: "🧠",
-    badge: "AUTONOMOUS CFO ADVISOR",
-    title: "Agentic RAG Debt & Surplus Capital Advisory",
+    badge: "YOUR 24/7 AI CFO",
+    title: "Ask Plain-English Questions & Get Confident Decisions",
     summary:
-      "Ask plain-language financial questions and receive deterministic CFO decisions with grounded calculations.",
+      "Ask questions like 'Can we afford to borrow ₹10L?' or 'Can we hire 3 employees?'. FinSight calculates your exact loan EMIs and debt limits.",
     details: [
-      "Loan Decision: Analyzes debt service (₹1.26L/mo EMI across 3 loans) and decisively advises whether to borrow.",
-      "Stock Investment: Evaluates cash buffer (₹23.5L) against monthly OpEx to guide safe capital allocation.",
-      "Verified Citations: Every single recommendation links back to source sheet rows and chunk indices.",
+      "Clear Borrowing Advice: Evaluates existing loans (₹1.26L/mo EMI across 3 loans) to tell you if borrowing is safe.",
+      "Cash Buffer Protection: Tells you how much money to keep untouched before spending on new inventory or tools.",
+      "Actionable Priority: Recommends collecting ₹6,61,953 in overdue customer receivables before taking any new debt.",
     ],
-    sampleOutput: "Decision: DO NOT TAKE ADDITIONAL LOAN · Prioritize collecting ₹6,61,953 in receivables",
+    sampleOutput: "Decision: DO NOT TAKE NEW LOAN · Collect ₹6,61,953 in customer bills first",
     linkText: "Ask AI Advisor (/advisor)",
   },
   {
     step: 4,
     icon: "🎛️",
-    badge: "WHAT-IF SIMULATOR",
-    title: "Causal Financial Simulation Engine",
+    badge: "SCENARIO SLIDERS",
+    title: "Test Business Decisions Before Spending Real Money",
     summary:
-      "Stress-test your business strategy before committing capital. Adjust operational levers and see 12-month projections.",
+      "Move simple sliders to see what happens to your cash balance over the next 12 months before hiring staff or signing contracts.",
     details: [
-      "Dynamic Levers: Revenue growth (+10%), COGS reduction (-5%), OpEx changes, and new loan financing.",
-      "Cash Trajectory: Month-by-month forecasting of cash reserves, operating burn, and break-even periods.",
-      "Instant Feasibility: Flags potential insolvency or covenant breach months in advance.",
+      "Intuitive What-If Sliders: Test +10% sales growth, -5% supplier discounts, or taking on a new commercial loan.",
+      "Month-by-Month Forecast: Visual chart showing projected cash in the bank, monthly burn rate, and break-even points.",
+      "Early Warnings: Flags if a decision will cause cash to run low months in advance.",
     ],
-    sampleOutput: "+10% Revenue Growth projects ₹38.4L ending cash with +₹14.2L profit expansion",
+    sampleOutput: "+10% Sales Growth projects ₹38.4L in the bank with +₹14.2L profit expansion",
     linkText: "Run Simulation (/simulator)",
   },
   {
     step: 5,
     icon: "📈",
-    badge: "MARKET INTELLIGENCE & TRADING",
-    title: "Real-Time Candlestick Charts & Technical Analysis",
+    badge: "STOCK TRENDS & IDLE CASH",
+    title: "Track Stocks & Grow Surplus Business Cash Safely",
     summary:
-      "Monitor Indian equities (NSE/BSE) with professional candlestick charts, technical overlays, and virtual paper trading.",
+      "Don't let extra company cash sit idle. Follow live NSE/BSE stocks with clear trends, and practice virtual paper trading with zero risk.",
     details: [
-      "Professional Charting: Candlestick/Line modes with timeframes from 1MO to 5Y.",
-      "Technical Overlays: Real-time SMA 20, SMA 50, EMA 12, EMA 26, RSI (14), and MACD signal indicators.",
-      "Risk-Free Paper Trading: Execute virtual buy/sell orders and manage simulated business treasury portfolios.",
+      "Live Candlestick Charts: View Reliance, Tata Motors, Infosys and NSE blue-chips with clean trendlines.",
+      "Moving Averages: 20-day and 50-day indicators show whether a stock is gaining or losing momentum.",
+      "Risk-Free Paper Trading: Practice virtual buy and sell orders with zero real money at risk.",
     ],
-    sampleOutput: "Reliance Industries (₹1,358.40) · SMA 20/50 Overlays · Volume Subplot",
+    sampleOutput: "Reliance Industries (₹1,358.40) · Moving Average Trendlines · Volume Bar Active",
     linkText: "Market Intelligence (/market)",
   },
   {
     step: 6,
     icon: "🛡️",
-    badge: "FRAUD DETECTION & AUTOMATIONS",
-    title: "Forensic Audit & Automated Background Alerts",
+    badge: "FRAUD & BILLING WATCHDOG",
+    title: "Automatic Fraud Shield & 24/7 Cash Alerts",
     summary:
-      "Continuous enterprise protection with Benford's Law anomaly detection and scheduled webhook monitors.",
+      "Protects your bank balance from duplicate vendor bills, abnormal invoice amounts, and cash crunch surprises.",
     details: [
-      "Forensic Scanning: First-digit distribution analysis detecting manipulated invoices and suspicious transactions.",
-      "Duplicate & Split Payments: Automatically detects invoice splitting designed to bypass approval thresholds.",
-      "2-Minute Daemon Monitor: Periodic background cron scans dispatching real-time webhooks for critical risks.",
+      "Duplicate Bill Catch: Flags vendors who submit the same invoice twice or split bills into smaller amounts.",
+      "Forensic Number Watchdog: Spots manipulated numbers and suspicious transaction patterns automatically.",
+      "24/7 Alerts: Sends instant alerts if your cash cushion drops below safe levels.",
     ],
-    sampleOutput: "0 Critical Fraud Flags · Benford Deviation < 1.8% · n8n Webhook Active",
+    sampleOutput: "Zero Fraud Flags · Invoice Verification Complete · 24/7 Monitor Active",
     linkText: "Fraud Detection (/fraud)",
   },
 ];
@@ -129,37 +129,37 @@ export function OnboardingModal({ forceOpen = false, onClose }: OnboardingModalP
     }
   }, [forceOpen]);
 
-  // Listen for custom trigger event
+  // Listen to custom window event to trigger tour from Topbar or anywhere
   useEffect(() => {
-    function handleOpenEvent() {
+    const handleOpenTour = () => {
       setIsOpen(true);
       setCurrentStepIndex(0);
-    }
-    window.addEventListener("finsight-open-tour", handleOpenEvent);
-    return () => window.removeEventListener("finsight-open-tour", handleOpenEvent);
+    };
+    window.addEventListener("finsight:open-tour", handleOpenTour);
+    return () => window.removeEventListener("finsight:open-tour", handleOpenTour);
   }, []);
 
-  function handleClose() {
+  const handleClose = () => {
     if (dontShowAgain) {
       localStorage.setItem("finsight_tour_completed", "true");
     }
     setIsOpen(false);
-    if (onClose) onClose();
-  }
+    onClose?.();
+  };
 
-  function handleNext() {
+  const handleNext = () => {
     if (currentStepIndex < TOUR_STEPS.length - 1) {
       setCurrentStepIndex((prev) => prev + 1);
     } else {
       handleClose();
     }
-  }
+  };
 
-  function handleBack() {
+  const handleBack = () => {
     if (currentStepIndex > 0) {
       setCurrentStepIndex((prev) => prev - 1);
     }
-  }
+  };
 
   if (!isOpen) return null;
 
@@ -167,6 +167,8 @@ export function OnboardingModal({ forceOpen = false, onClose }: OnboardingModalP
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       style={{
         position: "fixed",
         inset: 0,
@@ -174,49 +176,53 @@ export function OnboardingModal({ forceOpen = false, onClose }: OnboardingModalP
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "rgba(15, 23, 42, 0.65)",
+        padding: "16px",
+        background: "rgba(18, 18, 19, 0.65)", // Dark obsidian backdrop
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
-        padding: "20px",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) handleClose();
+        animation: "fadeIn 0.2s ease-out",
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
       }}
     >
       <div
         style={{
-          position: "relative",
-          width: "100%",
-          maxWidth: 680,
           background: "#FFFFFF",
           borderRadius: 20,
-          border: "1px solid #E2E8F0",
-          boxShadow: "0 25px 60px -15px rgba(15, 23, 42, 0.35)",
+          boxShadow: "0 25px 60px -15px rgba(20, 19, 18, 0.4)",
+          width: "100%",
+          maxWidth: 680,
           overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          animation: "modalFadeIn 0.22s ease-out",
+          border: "1px solid #E7E1D7",
+          animation: "scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
         }}
       >
-        {/* ── Top Header with Robot & Progress ──────────────────────── */}
+        {/* ── Top Header with Robot & Progress (Cream & Black Luxury) ─── */}
         <div
           style={{
-            background: "linear-gradient(135deg, #090B1E 0%, #171544 100%)",
+            background: "#18181B", // Deep obsidian black
             padding: "20px 24px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            color: "#FFFFFF",
+            color: "#FAF7F2",
+            borderBottom: "1px solid #27272A",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <AICFOAvatar size={48} expression="happy" compact />
+            <AICFOAvatar size={46} expression="happy" compact />
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#38BDF8", letterSpacing: "0.08em" }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#D4AF37", // Warm champagne gold
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
                 FINSIGHT AI · WELCOME TOUR
               </div>
-              <h3 style={{ margin: "2px 0 0", fontSize: 17, fontWeight: 700, color: "#FFFFFF" }}>
+              <h3 style={{ margin: "2px 0 0", fontSize: 16.5, fontWeight: 700, color: "#FFFFFF" }}>
                 Step {currentStep.step} of {TOUR_STEPS.length}: {currentStep.title}
               </h3>
             </div>
@@ -232,12 +238,11 @@ export function OnboardingModal({ forceOpen = false, onClose }: OnboardingModalP
               borderRadius: "50%",
               width: 32,
               height: 32,
-              color: "#FFFFFF",
+              color: "#FAF7F2",
               fontSize: 18,
               cursor: "pointer",
               display: "grid",
               placeItems: "center",
-              transition: "background 0.15s",
             }}
           >
             ×
@@ -245,13 +250,13 @@ export function OnboardingModal({ forceOpen = false, onClose }: OnboardingModalP
         </div>
 
         {/* ── Step Progress Indicator Bar ──────────────────────────── */}
-        <div style={{ display: "flex", height: 4, background: "#F1F5F9" }}>
+        <div style={{ display: "flex", height: 4, background: "#F5EFE6" }}>
           {TOUR_STEPS.map((step, idx) => (
             <div
               key={step.step}
               style={{
                 flex: 1,
-                background: idx <= currentStepIndex ? "#2563EB" : "transparent",
+                background: idx <= currentStepIndex ? "#18181B" : "transparent",
                 transition: "background 0.25s ease",
               }}
             />
@@ -259,7 +264,7 @@ export function OnboardingModal({ forceOpen = false, onClose }: OnboardingModalP
         </div>
 
         {/* ── Step Body Content ────────────────────────────────────── */}
-        <div style={{ padding: "28px 32px 20px 32px", overflowY: "auto", maxHeight: "65vh" }}>
+        <div style={{ padding: "26px 30px 18px", overflowY: "auto", maxHeight: "65vh" }}>
           {/* Badge & Step Title */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
             <span style={{ fontSize: 26 }}>{currentStep.icon}</span>
@@ -267,8 +272,9 @@ export function OnboardingModal({ forceOpen = false, onClose }: OnboardingModalP
               style={{
                 fontSize: 11,
                 fontWeight: 700,
-                color: "#2563EB",
-                background: "#EFF6FF",
+                color: "#44403C",
+                background: "#F5EFE6",
+                border: "1px solid #DFD5C6",
                 padding: "3px 10px",
                 borderRadius: 9999,
                 letterSpacing: "0.05em",
@@ -278,87 +284,117 @@ export function OnboardingModal({ forceOpen = false, onClose }: OnboardingModalP
             </span>
           </div>
 
-          <p style={{ fontSize: 15, color: "#1E293B", fontWeight: 500, lineHeight: 1.5, margin: "0 0 16px" }}>
+          <p
+            style={{
+              fontSize: 15,
+              color: "#1C1917",
+              fontWeight: 500,
+              lineHeight: 1.55,
+              margin: "0 0 16px",
+            }}
+          >
             {currentStep.summary}
           </p>
 
           {/* Details list */}
           <div
             style={{
-              background: "#F8FAFC",
+              background: "#FAF7F2",
               borderRadius: 12,
               padding: "16px 20px",
-              border: "1px solid #E2E8F0",
+              border: "1px solid #E7E1D7",
               marginBottom: 16,
             }}
           >
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", marginBottom: 8, letterSpacing: "0.05em" }}>
-              Key Capabilities:
+            <div
+              style={{
+                fontSize: 11.5,
+                fontWeight: 700,
+                color: "#78716C",
+                textTransform: "uppercase",
+                marginBottom: 8,
+                letterSpacing: "0.06em",
+              }}
+            >
+              KEY CAPABILITIES:
             </div>
             <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 8 }}>
               {currentStep.details.map((detail, i) => (
-                <li key={i} style={{ fontSize: 13.5, color: "#334155", lineHeight: 1.4 }}>
+                <li key={i} style={{ fontSize: 13.5, color: "#44403C", lineHeight: 1.45 }}>
                   {detail}
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* Live Output Highlight Box */}
+          {/* Sample Output Banner */}
           <div
             style={{
               background: "#F0FDF4",
               border: "1px solid #BBF7D0",
               borderRadius: 10,
-              padding: "10px 16px",
+              padding: "10px 14px",
               display: "flex",
               alignItems: "center",
-              gap: 10,
+              gap: 8,
+              fontSize: 12.5,
+              color: "#166534",
+              fontWeight: 600,
             }}
           >
-            <span style={{ fontSize: 16 }}>⚡</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#166534" }}>
-              {currentStep.sampleOutput}
-            </span>
+            <span>⚡</span>
+            <span>{currentStep.sampleOutput}</span>
           </div>
         </div>
 
-        {/* ── Footer Controls ──────────────────────────────────────── */}
+        {/* ── Footer Navigation Actions (Cream & Black Luxury) ────────── */}
         <div
           style={{
-            padding: "16px 32px 20px 32px",
-            borderTop: "1px solid #E2E8F0",
+            padding: "16px 28px",
+            background: "#FAF7F2",
+            borderTop: "1px solid #E7E1D7",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            background: "#FAFAFA",
+            flexWrap: "wrap",
+            gap: 12,
           }}
         >
           {/* Don't show again toggle */}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#64748B", cursor: "pointer" }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 12,
+              color: "#78716C",
+              cursor: "pointer",
+              userSelect: "none",
+            }}
+          >
             <input
               type="checkbox"
               checked={dontShowAgain}
               onChange={(e) => setDontShowAgain(e.target.checked)}
-              style={{ accentColor: "#2563EB", cursor: "pointer" }}
+              style={{ cursor: "pointer", accentColor: "#18181B" }}
             />
             Don't show this tour automatically again
           </label>
 
-          {/* Navigation Buttons */}
+          {/* Stepper Buttons */}
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {currentStepIndex > 0 && (
               <button
                 type="button"
                 onClick={handleBack}
                 style={{
-                  background: "transparent",
-                  border: "1px solid #CBD5E1",
+                  background: "#FFFFFF",
+                  border: "1px solid #D8CFC2",
                   borderRadius: 8,
-                  padding: "8px 16px",
+                  padding: "8px 14px",
                   fontSize: 13,
                   fontWeight: 600,
-                  color: "#475569",
+                  color: "#44403C",
                   cursor: "pointer",
                 }}
               >
@@ -374,7 +410,7 @@ export function OnboardingModal({ forceOpen = false, onClose }: OnboardingModalP
                 border: "none",
                 fontSize: 13,
                 fontWeight: 600,
-                color: "#64748B",
+                color: "#78716C",
                 cursor: "pointer",
                 padding: "8px 12px",
               }}
@@ -386,15 +422,15 @@ export function OnboardingModal({ forceOpen = false, onClose }: OnboardingModalP
               type="button"
               onClick={handleNext}
               style={{
-                background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
-                border: "none",
+                background: "#18181B",
+                border: "1px solid #27272A",
                 borderRadius: 8,
                 padding: "8px 20px",
                 fontSize: 13,
                 fontWeight: 600,
-                color: "#FFFFFF",
+                color: "#FAF7F2",
                 cursor: "pointer",
-                boxShadow: "0 2px 8px rgba(37, 99, 235, 0.3)",
+                boxShadow: "0 2px 8px rgba(24, 24, 27, 0.25)",
               }}
             >
               {currentStepIndex === TOUR_STEPS.length - 1 ? "Get Started 🚀" : "Next →"}
@@ -406,7 +442,7 @@ export function OnboardingModal({ forceOpen = false, onClose }: OnboardingModalP
   );
 }
 
-// Global helper to trigger the tour popup from anywhere (e.g. Topbar button)
+/** Global trigger function */
 export function openProductTour() {
-  window.dispatchEvent(new CustomEvent("finsight-open-tour"));
+  window.dispatchEvent(new CustomEvent("finsight:open-tour"));
 }
