@@ -32,6 +32,14 @@ services:
         sync: false
       - key: RESEND_FROM_EMAIL
         value: FinSight AI <onboarding@resend.dev>
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: OPENROUTER_MODEL
+        value: deepseek/deepseek-chat:free
+      - key: LLM_PROVIDER_PRIORITY
+        value: '["groq","openrouter"]'
 
   # Frontend Static Site
   - type: web

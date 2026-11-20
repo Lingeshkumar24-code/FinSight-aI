@@ -506,22 +506,38 @@ class AgenticRAGEngine:
         pnl = m.get("pnl", {})
         cash = m.get("cash_balance")
         debt = m.get("total_debt")
+        revenue_sample = m.get("revenue_sample", [])
+        net_profit_sample = m.get("net_profit_sample", [])
 
-        if pnl or cash is not None or debt is not None:
-            lines = [f"Executive Financial Evaluation — {company}:\n"]
-            if pnl:
-                lines.append("1. Revenue & Profitability:")
-                for p, pdata in pnl.items():
-                    rev = pdata.get("revenue", 0)
-                    gp = pdata.get("gross_profit") or pdata.get("operating_profit", 0)
-                    net = pdata.get("net_profit") or pdata.get("net_loss") or pdata.get("net_income", 0)
-                    lines.append(f"- {p}: Revenue ₹{rev:,.0f} | Operating/Gross Profit ₹{gp:,.0f} | Net Income ₹{net:,.0f}")
-            if cash is not None or debt is not None:
-                lines.append("\n2. Liquidity & Solvency:")
-                if cash is not None:
-                    lines.append(f"- Liquid Cash Reserves: ₹{cash:,.0f}")
-                if debt is not None:
-                    lines.append(f"- Outstanding Debt: ₹{debt:,.0f}")
-            return "\n".join(lines)
+        lines = [f"Executive Financial Evaluation — {company}:\n"]
 
-        return ""
+        if pnl:
+            lines.append("1. Revenue & Profitability:")
+            for p, pdata in pnl.items():
+                rev = pdata.get("revenue", 0)
+                gp = pdata.get("gross_profit") or pdata.get("operating_profit", 0)
+                net = pdata.get("net_profit") or pdata.get("net_loss") or pdata.get("net_income", 0)
+                lines.append(f"- {p}: Revenue ₹{rev:,.0f} | Operating/Gross Profit ₹{gp:,.0f} | Net Income ₹{net:,.0f}")
+        elif revenue_sample:
+            lines.append("1. Revenue & Profitability (from document):")
+            for i, rev in enumerate(revenue_sample[:5], 1):
+                lines.append(f"- Revenue entry {i}: ₹{rev:,.0f}")
+        if net_profit_sample:
+            lines.append("2. Net Profit (from document):")
+            for i, net in enumerate(net_profit_sample[:5], 1):
+                lines.append(f"- Net profit entry {i}: ₹{net:,.0f}")
+        if cash is not None or debt is not None:
+            lines.append("\n2. Liquidity & Solvency:")
+            if cash is not None:
+                lines.append(f"- Liquid Cash Reserves: ₹{cash:,.0f}")
+            if debt is not None:
+                lines.append(f"- Outstanding Debt: ₹{debt:,.0f}")
+
+        if not pnl and not revenue_sample and not net_profit_sample and cash is None and debt is None:
+            lines.append(
+                "No structured financial figures were auto-extracted from this document. "
+                "The AI Advisor can still answer questions from your uploaded content — "
+                "ask something specific like \"What is the total revenue?\" or \"Show me the expense breakdown.\""
+            )
+
+        return "\n".join(lines)

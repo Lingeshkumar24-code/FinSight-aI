@@ -13,6 +13,7 @@ import respx
 
 from app.llm.providers.base import CompletionRequest, ProviderError
 from app.llm.providers.gemini_provider import GeminiProvider
+from app.llm.providers.groq_provider import GroqProvider
 from app.llm.providers.ollama_provider import OllamaProvider
 from app.llm.providers.openai_provider import OpenAIProvider
 from app.llm.providers.openrouter_provider import OpenRouterProvider
@@ -128,6 +129,36 @@ async def test_openrouter_provider_treats_null_content_as_failure():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_groq_provider_parses_success_response():
+    respx.post("https://api.groq.com/openai/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "Reliance Industries revenue is ₹10,55,780 Cr."}}],
+                "usage": {"prompt_tokens": 12, "completion_tokens": 8},
+            },
+        )
+    )
+    provider = GroqProvider(api_key="fake-groq-key")
+    result = await provider.complete(CompletionRequest(prompt="What is Reliance revenue?"))
+    assert result.text == "Reliance Industries revenue is ₹10,55,780 Cr."
+    assert result.provider == "groq"
+    assert result.input_tokens == 12
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_groq_provider_raises_provider_error_on_failure():
+    respx.post("https://api.groq.com/openai/v1/chat/completions").mock(
+        return_value=httpx.Response(401, text="invalid api key")
+    )
+    provider = GroqProvider(api_key="bad-key")
+    with pytest.raises(ProviderError):
+        await provider.complete(CompletionRequest(prompt="hello"))
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_openai_provider_treats_null_content_as_failure():
     respx.post("https://api.openai.com/v1/chat/completions").mock(
         return_value=httpx.Response(200, json={"choices": [{"message": {"content": None}}]})
@@ -135,3 +166,33 @@ async def test_openai_provider_treats_null_content_as_failure():
     provider = OpenAIProvider(api_key="fake-key")
     with pytest.raises(ProviderError):
         await provider.complete(CompletionRequest(prompt="Summarise my cash flow"))
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_groq_provider_parses_success_response():
+    respx.post("https://api.groq.com/openai/v1/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "Reliance Industries revenue is ₹10,55,780 Cr."}}],
+                "usage": {"prompt_tokens": 12, "completion_tokens": 8},
+            },
+        )
+    )
+    provider = GroqProvider(api_key="fake-groq-key")
+    result = await provider.complete(CompletionRequest(prompt="What is Reliance revenue?"))
+    assert result.text == "Reliance Industries revenue is ₹10,55,780 Cr."
+    assert result.provider == "groq"
+    assert result.input_tokens == 12
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_groq_provider_raises_provider_error_on_failure():
+    respx.post("https://api.groq.com/openai/v1/chat/completions").mock(
+        return_value=httpx.Response(401, text="invalid api key")
+    )
+    provider = GroqProvider(api_key="bad-key")
+    with pytest.raises(ProviderError):
+        await provider.complete(CompletionRequest(prompt="hello"))

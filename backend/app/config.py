@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     SUPABASE_STORAGE_BUCKET: str = "financial-documents"
 
     # --- LLM providers (model-agnostic router) ---
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"
     GEMINI_API_KEY: str = ""
@@ -58,7 +60,8 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.1"
     # Priority order the router walks, by provider name.
-    LLM_PROVIDER_PRIORITY: list[str] = ["gemini", "openai", "openrouter", "ollama"]
+    # Groq (fast, strong reasoning) first, OpenRouter as free fallback.
+    LLM_PROVIDER_PRIORITY: list[str] = ["groq", "openrouter"]
 
     # --- n8n (automation layer) ---
     N8N_WEBHOOK_URL: str = "http://localhost:5678/webhook/finsight-alerts"

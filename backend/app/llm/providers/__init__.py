@@ -1,6 +1,7 @@
 from .base import CompletionRequest, CompletionResponse, LLMProvider, ProviderError
 from .openai_provider import OpenAIProvider
 from .gemini_provider import GeminiProvider
+from .groq_provider import GroqProvider
 from .openrouter_provider import OpenRouterProvider
 from .ollama_provider import OllamaProvider
 
@@ -11,6 +12,7 @@ __all__ = [
     "ProviderError",
     "OpenAIProvider",
     "GeminiProvider",
+    "GroqProvider",
     "OpenRouterProvider",
     "OllamaProvider",
 ]
