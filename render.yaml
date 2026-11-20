@@ -1,7 +1,8 @@
 services:
-  # Backend FastAPI Web Service
+  # Backend FastAPI Web Service (Free Tier)
   - type: web
     name: finsight-backend
+    plan: free
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
