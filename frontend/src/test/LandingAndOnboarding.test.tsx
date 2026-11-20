@@ -28,7 +28,7 @@ describe("Landing and OnboardingModal from FinesightAI2.0", () => {
     expect(screen.getByText(/One intelligent AI CFO\./i)).toBeInTheDocument();
 
     // Plain-English verified metrics & decisions
-    expect(screen.getByText(/18\.7% Margin/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/18\.7% Margin/i)[0]).toBeInTheDocument();
     expect(screen.getAllByText(/₹23,50,000/i)[0]).toBeInTheDocument();
     expect(screen.getByText(/2\.196x Liquidity/i)).toBeInTheDocument();
     expect(screen.getByText(/Do Not Borrow · Collect Bills First/i)).toBeInTheDocument();

@@ -4,48 +4,12 @@ import { useAuth } from "../lib/AuthContext";
 import { AICFOAvatar } from "../components/ai/AICFOAvatar";
 import { OnboardingModal } from "../components/onboarding/OnboardingModal";
 
-const features = [
-  [
-    "01",
-    "Spreadsheet & Document Reader",
-    "Upload messy 20+ sheet Excel workbooks, bank statements, or invoices. FinSight reads thousands of numbers in 3.4 seconds with 100% citation tracking — no complex formulas needed.",
-  ],
-  [
-    "02",
-    "Your 24/7 AI Chief Financial Officer",
-    "Tells you clearly: Should you borrow from the bank or not? Calculates your monthly debt EMIs against real revenues so you never risk running out of cash.",
-  ],
-  [
-    "03",
-    "Causal What-If Scenario Sliders",
-    "What if sales drop 15% next quarter? What if supplier costs jump 8%? Move intuitive sliders to see your bank balance 12 months ahead before signing contracts or hiring.",
-  ],
-  [
-    "04",
-    "Stock Trends & Idle Cash Growth",
-    "Don't let company cash sit idle losing value. Follow live NSE/BSE stock trends with moving averages and practice virtual paper trades with zero risk.",
-  ],
-  [
-    "05",
-    "Automatic Fraud & Billing Shield",
-    "Protects your bank accounts from billing mistakes, double payments, and supplier fraud. Automatically flags suspicious vendor invoices before money leaves.",
-  ],
-  [
-    "06",
-    "Cash Flow & Liquidity Runway",
-    "Understand your exact financial cushion. Tracks opening balance, burn rate, and projected cash runway down to the day.",
-  ],
-  [
-    "07",
-    "Capital Structure & Debt Capacity",
-    "Review active business loans, monthly EMI commitments, interest rates, and financial stability from one unified perspective.",
-  ],
-  [
-    "08",
-    "24/7 Watchdog Alerts & Webhooks",
-    "Never get surprised by an empty bank account or overdue bill. FinSight watches your numbers 24/7 and sends instant alerts when runway drops.",
-  ],
-];
+interface FeatureItem {
+  number: string;
+  title: string;
+  description: string;
+  illustration: React.ReactNode;
+}
 
 export function Landing() {
   const navigate = useNavigate();
@@ -67,6 +31,246 @@ export function Landing() {
   function scrollToId(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+
+  const features: FeatureItem[] = [
+    {
+      number: "01",
+      title: "Spreadsheet & Document Reader",
+      description:
+        "Upload messy 20+ sheet Excel workbooks, bank statements, or invoices. FinSight reads thousands of numbers in 3.4 seconds with 100% citation tracking — no complex formulas needed.",
+      illustration: (
+        <div className="feature-illustration">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, fontSize: 10, fontWeight: 700, color: "#16845B" }}>
+            <span>📊 FinSight_Business_Model.xlsx</span>
+            <span style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", padding: "1px 5px", borderRadius: 4 }}>22 SHEETS</span>
+          </div>
+          <div style={{ background: "#FFFFFF", border: "1px solid #E7E5DC", borderRadius: 6, padding: "6px 8px", fontSize: 10, fontFamily: "var(--font-mono)", color: "#242923", display: "grid", gap: 3 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #F4F1E8", paddingBottom: 2 }}>
+              <span style={{ color: "#788579" }}>Q3 Gross Revenue</span>
+              <strong style={{ color: "#16845B" }}>₹1,42,85,000</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #F4F1E8", paddingBottom: 2 }}>
+              <span style={{ color: "#788579" }}>Total Cost of Goods</span>
+              <span>₹54,20,000</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#788579" }}>Net Operating Margin</span>
+              <strong style={{ color: "#16845B" }}>18.7% ✓</strong>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 4, marginTop: 6, fontSize: 8.5, color: "#788579" }}>
+            <span style={{ background: "#16845B", color: "#FFFFFF", padding: "1px 4px", borderRadius: 3, fontWeight: 700 }}>P&L Active</span>
+            <span style={{ background: "#EAE5DA", padding: "1px 4px", borderRadius: 3 }}>Balance Sheet</span>
+            <span style={{ background: "#EAE5DA", padding: "1px 4px", borderRadius: 3 }}>Loans</span>
+            <span style={{ background: "#EAE5DA", padding: "1px 4px", borderRadius: 3 }}>Cash Flow</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      number: "02",
+      title: "Your 24/7 AI Chief Financial Officer",
+      description:
+        "Tells you clearly: Should you borrow from the bank or not? Calculates your monthly debt EMIs against real revenues so you never risk running out of cash.",
+      illustration: (
+        <div className="feature-illustration">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#B91C1C", boxShadow: "0 0 0 3px rgba(185, 28, 28, 0.2)" }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#B91C1C", textTransform: "uppercase" }}>Debt Capacity Alert</span>
+          </div>
+          <div style={{ background: "#171717", borderRadius: 6, padding: "8px", color: "#F5F1E8", fontSize: 10 }}>
+            <div style={{ color: "#FCA5A5", fontWeight: 700, fontSize: 10.5, marginBottom: 2 }}>DECISION: HOLD NEW LOANS</div>
+            <div style={{ color: "#C0BAAE", fontSize: 9.5, lineHeight: 1.4 }}>
+              Current EMI: <strong>₹1,26,000/mo</strong> across 3 loans. Collect <strong>₹6,61,953</strong> in customer invoices before borrowing.
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, fontSize: 9, color: "#16845B", fontWeight: 600 }}>
+            <span>✓ 0 Covenant Breaches</span>
+            <span>Grounded Math Verified</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      number: "03",
+      title: "Causal What-If Scenario Sliders",
+      description:
+        "What if sales drop 15% next quarter? What if supplier costs jump 8%? Move intuitive sliders to see your bank balance 12 months ahead before signing contracts or hiring.",
+      illustration: (
+        <div className="feature-illustration">
+          <div style={{ display: "grid", gap: 6, fontSize: 9.5 }}>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "#4E4B45", fontWeight: 600, marginBottom: 2 }}>
+                <span>Revenue Growth</span>
+                <strong style={{ color: "#16845B" }}>+15%</strong>
+              </div>
+              <div style={{ height: 6, background: "#EAE5DA", borderRadius: 3, position: "relative" }}>
+                <div style={{ width: "65%", height: "100%", background: "#16845B", borderRadius: 3 }} />
+                <div style={{ position: "absolute", left: "65%", top: -2, width: 10, height: 10, borderRadius: "50%", background: "#171717", border: "2px solid #FFFFFF" }} />
+              </div>
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "#4E4B45", fontWeight: 600, marginBottom: 2 }}>
+                <span>Supplier Cost Reduction</span>
+                <strong style={{ color: "#16845B" }}>-5%</strong>
+              </div>
+              <div style={{ height: 6, background: "#EAE5DA", borderRadius: 3, position: "relative" }}>
+                <div style={{ width: "40%", height: "100%", background: "#123B2A", borderRadius: 3 }} />
+                <div style={{ position: "absolute", left: "40%", top: -2, width: 10, height: 10, borderRadius: "50%", background: "#171717", border: "2px solid #FFFFFF" }} />
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 7, padding: "5px 7px", background: "#FFFFFF", border: "1px solid #DCD6CA", borderRadius: 5, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 9 }}>
+            <span style={{ color: "#77736B" }}>12-Mo Projected Cash</span>
+            <strong style={{ color: "#16845B" }}>₹38.4L (+₹14.9L Expansion)</strong>
+          </div>
+        </div>
+      ),
+    },
+    {
+      number: "04",
+      title: "Stock Trends & Idle Cash Growth",
+      description:
+        "Don't let company cash sit idle losing value. Follow live NSE/BSE stock trends with moving averages and practice virtual paper trades with zero risk.",
+      illustration: (
+        <div className="feature-illustration">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#171717" }}>RELIANCE.NS (NSE)</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#16845B" }}>₹1,358.40 ▲</span>
+          </div>
+          <svg width="100%" height="42" viewBox="0 0 200 42" fill="none">
+            {/* SMA 20 */}
+            <path d="M 0,32 Q 40,28 70,22 T 130,16 T 200,8" stroke="#2563EB" strokeWidth="1.6" fill="none" />
+            {/* SMA 50 */}
+            <path d="M 0,36 Q 50,33 90,26 T 150,21 T 200,14" stroke="#D97706" strokeWidth="1.4" fill="none" />
+            {/* Mini Candlesticks */}
+            <line x1="25" y1="26" x2="25" y2="38" stroke="#16845B" strokeWidth="1" />
+            <rect x="23" y="28" width="4" height="7" fill="#16845B" />
+            <line x1="60" y1="18" x2="60" y2="30" stroke="#B91C1C" strokeWidth="1" />
+            <rect x="58" y="20" width="4" height="8" fill="#B91C1C" />
+            <line x1="100" y1="14" x2="100" y2="28" stroke="#16845B" strokeWidth="1" />
+            <rect x="98" y="16" width="4" height="9" fill="#16845B" />
+            <line x1="140" y1="10" x2="140" y2="24" stroke="#16845B" strokeWidth="1" />
+            <rect x="138" y="12" width="4" height="9" fill="#16845B" />
+            <line x1="180" y1="4" x2="180" y2="18" stroke="#16845B" strokeWidth="1" />
+            <rect x="178" y="6" width="4" height="10" fill="#16845B" />
+          </svg>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#77736B", marginTop: 2 }}>
+            <span>SMA 20/50 Overlays</span>
+            <span style={{ color: "#16845B", fontWeight: 700 }}>Paper Treasury Active</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      number: "05",
+      title: "Automatic Fraud & Billing Shield",
+      description:
+        "Protects your bank accounts from billing mistakes, double payments, and supplier fraud. Automatically flags suspicious vendor invoices before money leaves.",
+      illustration: (
+        <div className="feature-illustration">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: "#B45309", display: "flex", alignItems: "center", gap: 4 }}>
+              🛡️ Benford's Law Watchdog
+            </span>
+            <span style={{ fontSize: 8.5, background: "#FEF3C7", color: "#92400E", padding: "1px 5px", borderRadius: 3, fontWeight: 600 }}>0 Fraud</span>
+          </div>
+          <div style={{ background: "#FFFFFF", border: "1px solid #DCD6CA", borderRadius: 6, padding: "5px 7px", fontSize: 9 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#B91C1C", fontWeight: 600 }}>
+              <span>⚠️ Split Invoice Detected</span>
+              <span>₹49,500</span>
+            </div>
+            <div style={{ color: "#77736B", fontSize: 8.5, marginTop: 2 }}>Vendor attempted bypass of ₹50k approval threshold.</div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#16845B", marginTop: 5, fontWeight: 600 }}>
+            <span>✓ Duplicate Invoice Guard</span>
+            <span>Bank Protected</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      number: "06",
+      title: "Cash Flow & Liquidity Runway",
+      description:
+        "Understand your exact financial cushion. Tracks opening balance, burn rate, and projected cash runway down to the day.",
+      illustration: (
+        <div className="feature-illustration">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+            <span style={{ fontSize: 9.5, color: "#77736B" }}>Safe Operating Cushion</span>
+            <strong style={{ fontSize: 13, color: "#171717" }}>45 Days Runway</strong>
+          </div>
+          <div style={{ height: 8, background: "#EAE5DA", borderRadius: 4, overflow: "hidden", display: "flex" }}>
+            <div style={{ width: "65%", background: "#16845B" }} />
+            <div style={{ width: "20%", background: "#F59E0B" }} />
+            <div style={{ width: "15%", background: "#B91C1C" }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#77736B", marginTop: 4 }}>
+            <span>Opening: ₹23.5L</span>
+            <span>Burn: ₹15.6L/mo</span>
+            <span style={{ color: "#16845B", fontWeight: 700 }}>Optimal</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      number: "07",
+      title: "Capital Structure & Debt Capacity",
+      description:
+        "Review active business loans, monthly EMI commitments, interest rates, and financial stability from one unified perspective.",
+      illustration: (
+        <div className="feature-illustration">
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5, fontWeight: 700, marginBottom: 4 }}>
+            <span style={{ color: "#171717" }}>Leverage: Debt / Equity</span>
+            <span style={{ color: "#16845B" }}>0.539x (Low Risk)</span>
+          </div>
+          <div style={{ background: "#FFFFFF", border: "1px solid #DCD6CA", borderRadius: 6, padding: "5px 7px", fontSize: 8.5, display: "grid", gap: 2 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>1. Term Loan (HDFC)</span>
+              <strong>₹12,00,000</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>2. Working Cap (SBI)</span>
+              <strong>₹9,00,000</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>3. Machinery Line</span>
+              <strong>₹7,10,000</strong>
+            </div>
+          </div>
+          <div style={{ textAlign: "right", fontSize: 8.5, color: "#77736B", marginTop: 3 }}>
+            Total EMI: <strong style={{ color: "#B91C1C" }}>₹1,26,000/mo</strong>
+          </div>
+        </div>
+      ),
+    },
+    {
+      number: "08",
+      title: "24/7 Watchdog Alerts & Webhooks",
+      description:
+        "Never get surprised by an empty bank account or overdue bill. FinSight watches your numbers 24/7 and sends instant alerts when runway drops.",
+      illustration: (
+        <div className="feature-illustration">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: "#171717", display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16845B", boxShadow: "0 0 0 3px rgba(22, 132, 91, 0.2)" }} />
+              Active Daemon
+            </span>
+            <span style={{ fontSize: 8.5, color: "#77736B" }}>Scans every 2 min</span>
+          </div>
+          <div style={{ background: "#FFFFFF", border: "1px solid #DCD6CA", borderRadius: 6, padding: "5px 7px", fontSize: 9 }}>
+            <div style={{ fontWeight: 600, color: "#171717" }}>⚡ Webhook & Email Dispatched</div>
+            <div style={{ color: "#77736B", fontSize: 8.5, marginTop: 1 }}>Receivables Alert: ₹6.61L Overdue &gt; 30 Days</div>
+          </div>
+          <div style={{ display: "flex", gap: 4, marginTop: 4, fontSize: 8.5 }}>
+            <span style={{ background: "#ECFDF5", color: "#16845B", padding: "1px 5px", borderRadius: 3, fontWeight: 600 }}>Email Sent</span>
+            <span style={{ background: "#F4F1E8", color: "#4E4B45", padding: "1px 5px", borderRadius: 3 }}>n8n Webhook</span>
+            <span style={{ background: "#F4F1E8", color: "#4E4B45", padding: "1px 5px", borderRadius: 3 }}>Slack Alert</span>
+          </div>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="landing">
@@ -119,6 +323,7 @@ export function Landing() {
             </div>
           </div>
 
+          {/* ── Enhanced Hero Preview Shell with Dynamic Business Graph ── */}
           <div className="hero-visual" aria-label="FinSight AI dashboard preview">
             <div className="preview-shell">
               <div className="preview-topbar">
@@ -147,17 +352,106 @@ export function Landing() {
                       <strong>2.196x Liquidity</strong>
                     </div>
                   </div>
+
+                  {/* ── Dynamic Multi-Layer Executive Financial Chart ── */}
                   <div className="preview-chart">
-                    <div className="chart-bars" aria-hidden="true">
-                      {[42, 58, 51, 72, 64, 82, 76, 88].map((height, index) => (
-                        <span key={index} style={{ height: `${height}%` }} />
-                      ))}
+                    <div className="preview-chart-legend">
+                      <span>● Cash Reserves (₹23.5L)</span>
+                      <span style={{ color: "#D97706" }}>╌ Safe Floor (₹15L)</span>
+                      <span style={{ color: "#16845B" }}>▲ +18.7% Margin</span>
                     </div>
-                    <div className="chart-line" aria-hidden="true" />
+
+                    <div style={{ flex: 1, padding: "8px 12px 6px 12px", position: "relative" }}>
+                      <svg width="100%" height="100%" viewBox="0 0 380 145" preserveAspectRatio="none" style={{ overflow: "visible" }}>
+                        <defs>
+                          <linearGradient id="cash-area-glow" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#16845B" stopOpacity="0.32" />
+                            <stop offset="70%" stopColor="#16845B" stopOpacity="0.06" />
+                            <stop offset="100%" stopColor="#16845B" stopOpacity="0" />
+                          </linearGradient>
+                          <linearGradient id="active-bar-grad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#16845B" />
+                            <stop offset="100%" stopColor="#123B2A" />
+                          </linearGradient>
+                          <linearGradient id="regular-bar-grad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#374151" />
+                            <stop offset="100%" stopColor="#1F2937" />
+                          </linearGradient>
+                        </defs>
+
+                        {/* Subtle background gridlines */}
+                        <line x1="0" y1="30" x2="380" y2="30" stroke="#E5DFD5" strokeDasharray="3 3" />
+                        <line x1="0" y1="70" x2="380" y2="70" stroke="#E5DFD5" strokeDasharray="3 3" />
+                        <line x1="0" y1="110" x2="380" y2="110" stroke="#E5DFD5" strokeDasharray="3 3" />
+
+                        {/* Minimum Safe Buffer Line (₹15L) */}
+                        <line x1="0" y1="78" x2="380" y2="78" stroke="#D97706" strokeWidth="1.2" strokeDasharray="4 4" />
+                        <text x="375" y="74" fill="#D97706" fontSize="7.5" fontWeight="700" textAnchor="end">MIN SAFE BUFFER ₹15L</text>
+
+                        {/* Financial Activity Monthly Bars */}
+                        {/* Oct */}
+                        <rect x="22" y="65" width="22" height="58" rx="3" fill="url(#regular-bar-grad)" opacity="0.8" />
+                        {/* Nov */}
+                        <rect x="74" y="52" width="22" height="71" rx="3" fill="url(#regular-bar-grad)" opacity="0.85" />
+                        {/* Dec */}
+                        <rect x="126" y="38" width="22" height="85" rx="3" fill="url(#regular-bar-grad)" opacity="0.9" />
+                        {/* Jan */}
+                        <rect x="178" y="58" width="22" height="65" rx="3" fill="url(#regular-bar-grad)" opacity="0.85" />
+                        {/* Feb */}
+                        <rect x="230" y="42" width="22" height="81" rx="3" fill="url(#regular-bar-grad)" opacity="0.9" />
+                        {/* Mar (Live Peak) */}
+                        <rect x="282" y="22" width="22" height="101" rx="3" fill="url(#active-bar-grad)" />
+                        {/* Apr (AI Forecast) */}
+                        <rect x="334" y="10" width="22" height="113" rx="3" fill="#ECFDF5" stroke="#16845B" strokeWidth="1.2" strokeDasharray="3 3" />
+
+                        {/* Cash Trajectory Area Glow */}
+                        <path
+                          d="M 33,65 C 85,50 137,35 189,55 C 241,40 293,18 345,8 L 345,123 L 33,123 Z"
+                          fill="url(#cash-area-glow)"
+                        />
+
+                        {/* Cash Trajectory Smooth Curve */}
+                        <path
+                          d="M 33,65 C 85,50 137,35 189,55 C 241,40 293,18 345,8"
+                          stroke="#16845B"
+                          strokeWidth="2.4"
+                          strokeLinecap="round"
+                          fill="none"
+                        />
+
+                        {/* Live Peak Beacon Point */}
+                        <circle cx="293" cy="22" r="5" fill="#16845B" />
+                        <circle cx="293" cy="22" r="8" fill="none" stroke="#16845B" strokeWidth="1.4" opacity="0.6">
+                          <animate attributeName="r" values="5;11;5" dur="2s" repeatCount="indefinite" />
+                          <animate attributeName="opacity" values="0.8;0;0.8" dur="2s" repeatCount="indefinite" />
+                        </circle>
+
+                        {/* Peak Value Callout Tag */}
+                        <g transform="translate(245, 2)">
+                          <rect x="0" y="0" width="96" height="15" rx="4" fill="#171717" />
+                          <text x="48" y="10.5" fill="#FAF7F2" fontSize="7.8" fontWeight="700" textAnchor="middle">
+                            Mar Peak: ₹23,50,000
+                          </text>
+                        </g>
+
+                        {/* Bottom Axis Baseline */}
+                        <line x1="0" y1="123" x2="380" y2="123" stroke="#DCD6CA" strokeWidth="1" />
+
+                        {/* Axis Month Labels */}
+                        <text x="33" y="136" fill="#77736B" fontSize="8" fontWeight="600" textAnchor="middle">Oct</text>
+                        <text x="85" y="136" fill="#77736B" fontSize="8" fontWeight="600" textAnchor="middle">Nov</text>
+                        <text x="137" y="136" fill="#77736B" fontSize="8" fontWeight="600" textAnchor="middle">Dec</text>
+                        <text x="189" y="136" fill="#77736B" fontSize="8" fontWeight="600" textAnchor="middle">Jan</text>
+                        <text x="241" y="136" fill="#77736B" fontSize="8" fontWeight="600" textAnchor="middle">Feb</text>
+                        <text x="293" y="136" fill="#16845B" fontSize="8.2" fontWeight="800" textAnchor="middle">Mar (Live)</text>
+                        <text x="345" y="136" fill="#2563EB" fontSize="8" fontWeight="700" textAnchor="middle">Apr (AI)</text>
+                      </svg>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+
             <div className="floating-insight">
               <span>AI CFO DECISION</span>
               <strong style={{ fontSize: 11, color: "#16845B" }}>Do Not Borrow · Collect Bills First</strong>
@@ -370,7 +664,7 @@ export function Landing() {
           </div>
         </section>
 
-        {/* ── Section: Features ──────────────────────────────────────── */}
+        {/* ── Section: 8 Features with Business Illustrations ────────── */}
         <section className="landing-section" id="features">
           <div className="section-heading split-heading">
             <div>
@@ -383,12 +677,15 @@ export function Landing() {
             </p>
           </div>
           <div className="feature-grid">
-            {features.map(([number, title, description]) => (
-              <article className="feature-card" key={title}>
-                <span className="feature-number">{number}</span>
-                <div className="feature-icon" aria-hidden="true">↗</div>
-                <h3>{title}</h3>
-                <p>{description}</p>
+            {features.map((item) => (
+              <article className="feature-card" key={item.title}>
+                <div>
+                  <span className="feature-number">{item.number}</span>
+                  <div className="feature-icon" aria-hidden="true">↗</div>
+                  <h3>{item.title}</h3>
+                  <p>{item.description}</p>
+                </div>
+                {item.illustration}
               </article>
             ))}
           </div>
