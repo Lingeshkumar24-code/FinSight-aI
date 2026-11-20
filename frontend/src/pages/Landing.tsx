@@ -11,6 +11,13 @@ interface FeatureItem {
   illustration: React.ReactNode;
 }
 
+interface WhyItem {
+  number: string;
+  title: string;
+  description: string;
+  illustration: React.ReactNode;
+}
+
 export function Landing() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -40,29 +47,33 @@ export function Landing() {
         "Upload messy 20+ sheet Excel workbooks, bank statements, or invoices. FinSight reads thousands of numbers in 3.4 seconds with 100% citation tracking — no complex formulas needed.",
       illustration: (
         <div className="feature-illustration">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, fontSize: 10, fontWeight: 700, color: "#16845B" }}>
-            <span>📊 FinSight_Business_Model.xlsx</span>
-            <span style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", padding: "1px 5px", borderRadius: 4 }}>22 SHEETS</span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#171717", display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ background: "#107C41", color: "#FFF", padding: "1px 4px", borderRadius: 3, fontSize: 8, fontWeight: 800 }}>XLSX</span>
+              Consolidated_Financials.xlsx
+            </span>
+            <span style={{ fontSize: 8.5, background: "#ECFDF5", color: "#16845B", padding: "1px 6px", borderRadius: 4, fontWeight: 700, border: "1px solid #A7F3D0" }}>
+              22 Sheets · 3.4s
+            </span>
           </div>
-          <div style={{ background: "#FFFFFF", border: "1px solid #E7E5DC", borderRadius: 6, padding: "6px 8px", fontSize: 10, fontFamily: "var(--font-mono)", color: "#242923", display: "grid", gap: 3 }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #E5DFD5", borderRadius: 6, padding: "6px 8px", fontSize: 9.5, fontFamily: "var(--font-mono, monospace)", color: "#171717", display: "grid", gap: 3.5, flex: 1, justifySelf: "stretch" }}>
             <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #F4F1E8", paddingBottom: 2 }}>
-              <span style={{ color: "#788579" }}>Q3 Gross Revenue</span>
+              <span style={{ color: "#77736B" }}>Q3 Gross Revenue</span>
               <strong style={{ color: "#16845B" }}>₹1,42,85,000</strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #F4F1E8", paddingBottom: 2 }}>
-              <span style={{ color: "#788579" }}>Total Cost of Goods</span>
+              <span style={{ color: "#77736B" }}>Cost of Goods (COGS)</span>
               <span>₹54,20,000</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: "#788579" }}>Net Operating Margin</span>
+              <span style={{ color: "#77736B" }}>Net Profit Margin</span>
               <strong style={{ color: "#16845B" }}>18.7% ✓</strong>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 4, marginTop: 6, fontSize: 8.5, color: "#788579" }}>
-            <span style={{ background: "#16845B", color: "#FFFFFF", padding: "1px 4px", borderRadius: 3, fontWeight: 700 }}>P&L Active</span>
-            <span style={{ background: "#EAE5DA", padding: "1px 4px", borderRadius: 3 }}>Balance Sheet</span>
-            <span style={{ background: "#EAE5DA", padding: "1px 4px", borderRadius: 3 }}>Loans</span>
-            <span style={{ background: "#EAE5DA", padding: "1px 4px", borderRadius: 3 }}>Cash Flow</span>
+          <div style={{ display: "flex", gap: 4, marginTop: 6, fontSize: 8.5 }}>
+            <span style={{ background: "#171717", color: "#FFF", padding: "2px 6px", borderRadius: 3, fontWeight: 700 }}>P&L (Live)</span>
+            <span style={{ background: "#EAE5DA", color: "#4E4B45", padding: "2px 6px", borderRadius: 3 }}>Balance Sheet</span>
+            <span style={{ background: "#EAE5DA", color: "#4E4B45", padding: "2px 6px", borderRadius: 3 }}>Bank Reco</span>
           </div>
         </div>
       ),
@@ -74,19 +85,26 @@ export function Landing() {
         "Tells you clearly: Should you borrow from the bank or not? Calculates your monthly debt EMIs against real revenues so you never risk running out of cash.",
       illustration: (
         <div className="feature-illustration">
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#B91C1C", boxShadow: "0 0 0 3px rgba(185, 28, 28, 0.2)" }} />
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#B91C1C", textTransform: "uppercase" }}>Debt Capacity Alert</span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: "#B91C1C", display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#B91C1C", boxShadow: "0 0 0 2px rgba(185, 28, 28, 0.2)" }} />
+              AI LOAN EVALUATION
+            </span>
+            <span style={{ fontSize: 8.5, background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+              Decision: Hold
+            </span>
           </div>
-          <div style={{ background: "#171717", borderRadius: 6, padding: "8px", color: "#F5F1E8", fontSize: 10 }}>
-            <div style={{ color: "#FCA5A5", fontWeight: 700, fontSize: 10.5, marginBottom: 2 }}>DECISION: HOLD NEW LOANS</div>
-            <div style={{ color: "#C0BAAE", fontSize: 9.5, lineHeight: 1.4 }}>
-              Current EMI: <strong>₹1,26,000/mo</strong> across 3 loans. Collect <strong>₹6,61,953</strong> in customer invoices before borrowing.
+          <div style={{ background: "#171717", borderRadius: 6, padding: "8px 9px", color: "#F5F1E8", fontSize: 9.5, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ color: "#FCA5A5", fontWeight: 700, fontSize: 10, marginBottom: 2 }}>
+              DO NOT BORROW RIGHT NOW
+            </div>
+            <div style={{ color: "#D7D0C1", fontSize: 9, lineHeight: 1.4 }}>
+              Current monthly EMI: <strong>₹1,26,000/mo</strong>. A new loan drops runway to 22 days.
             </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, fontSize: 9, color: "#16845B", fontWeight: 600 }}>
-            <span>✓ 0 Covenant Breaches</span>
-            <span>Grounded Math Verified</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 5, fontSize: 8.5, color: "#16845B", fontWeight: 700 }}>
+            <span>✓ Collect ₹6.61L Overdue First</span>
+            <span style={{ background: "#ECFDF5", padding: "1px 5px", borderRadius: 3 }}>Verified</span>
           </div>
         </div>
       ),
@@ -98,31 +116,35 @@ export function Landing() {
         "What if sales drop 15% next quarter? What if supplier costs jump 8%? Move intuitive sliders to see your bank balance 12 months ahead before signing contracts or hiring.",
       illustration: (
         <div className="feature-illustration">
-          <div style={{ display: "grid", gap: 6, fontSize: 9.5 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5, fontWeight: 700, color: "#171717", marginBottom: 5 }}>
+            <span>Causal Simulator Console</span>
+            <span style={{ color: "#16845B" }}>12-Mo Model</span>
+          </div>
+          <div style={{ display: "grid", gap: 7, background: "#FFFFFF", border: "1px solid #E5DFD5", borderRadius: 6, padding: "7px 8px", flex: 1 }}>
             <div>
-              <div style={{ display: "flex", justifyContent: "space-between", color: "#4E4B45", fontWeight: 600, marginBottom: 2 }}>
-                <span>Revenue Growth</span>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#4E4B45", fontWeight: 600, marginBottom: 2 }}>
+                <span>Sales Expansion Slider</span>
                 <strong style={{ color: "#16845B" }}>+15%</strong>
               </div>
-              <div style={{ height: 6, background: "#EAE5DA", borderRadius: 3, position: "relative" }}>
+              <div style={{ height: 5, background: "#EAE5DA", borderRadius: 3, position: "relative" }}>
                 <div style={{ width: "65%", height: "100%", background: "#16845B", borderRadius: 3 }} />
-                <div style={{ position: "absolute", left: "65%", top: -2, width: 10, height: 10, borderRadius: "50%", background: "#171717", border: "2px solid #FFFFFF" }} />
+                <div style={{ position: "absolute", left: "63%", top: -3, width: 11, height: 11, borderRadius: "50%", background: "#171717", border: "2px solid #FFF", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
               </div>
             </div>
             <div>
-              <div style={{ display: "flex", justifyContent: "space-between", color: "#4E4B45", fontWeight: 600, marginBottom: 2 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#4E4B45", fontWeight: 600, marginBottom: 2 }}>
                 <span>Supplier Cost Reduction</span>
                 <strong style={{ color: "#16845B" }}>-5%</strong>
               </div>
-              <div style={{ height: 6, background: "#EAE5DA", borderRadius: 3, position: "relative" }}>
-                <div style={{ width: "40%", height: "100%", background: "#123B2A", borderRadius: 3 }} />
-                <div style={{ position: "absolute", left: "40%", top: -2, width: 10, height: 10, borderRadius: "50%", background: "#171717", border: "2px solid #FFFFFF" }} />
+              <div style={{ height: 5, background: "#EAE5DA", borderRadius: 3, position: "relative" }}>
+                <div style={{ width: "35%", height: "100%", background: "#123B2A", borderRadius: 3 }} />
+                <div style={{ position: "absolute", left: "33%", top: -3, width: 11, height: 11, borderRadius: "50%", background: "#171717", border: "2px solid #FFF", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
               </div>
             </div>
           </div>
-          <div style={{ marginTop: 7, padding: "5px 7px", background: "#FFFFFF", border: "1px solid #DCD6CA", borderRadius: 5, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 9 }}>
-            <span style={{ color: "#77736B" }}>12-Mo Projected Cash</span>
-            <strong style={{ color: "#16845B" }}>₹38.4L (+₹14.9L Expansion)</strong>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 5, fontSize: 8.5 }}>
+            <span style={{ color: "#77736B" }}>Ending Cash Result:</span>
+            <strong style={{ color: "#16845B", fontWeight: 700 }}>₹38.4L (+₹14.9L Expansion)</strong>
           </div>
         </div>
       ),
@@ -134,28 +156,35 @@ export function Landing() {
         "Don't let company cash sit idle losing value. Follow live NSE/BSE stock trends with moving averages and practice virtual paper trades with zero risk.",
       illustration: (
         <div className="feature-illustration">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#171717" }}>RELIANCE.NS (NSE)</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#16845B" }}>₹1,358.40 ▲</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+            <div>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#171717" }}>RELIANCE.NS (NSE)</span>
+              <span style={{ fontSize: 8.5, color: "#77736B", marginLeft: 4 }}>Live Market</span>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: "#171717" }}>₹1,358.40</span>
+              <span style={{ fontSize: 8.5, color: "#16845B", fontWeight: 700, marginLeft: 3 }}>▲ +1.2%</span>
+            </div>
           </div>
-          <svg width="100%" height="42" viewBox="0 0 200 42" fill="none">
-            {/* SMA 20 */}
-            <path d="M 0,32 Q 40,28 70,22 T 130,16 T 200,8" stroke="#2563EB" strokeWidth="1.6" fill="none" />
-            {/* SMA 50 */}
-            <path d="M 0,36 Q 50,33 90,26 T 150,21 T 200,14" stroke="#D97706" strokeWidth="1.4" fill="none" />
-            {/* Mini Candlesticks */}
-            <line x1="25" y1="26" x2="25" y2="38" stroke="#16845B" strokeWidth="1" />
-            <rect x="23" y="28" width="4" height="7" fill="#16845B" />
-            <line x1="60" y1="18" x2="60" y2="30" stroke="#B91C1C" strokeWidth="1" />
-            <rect x="58" y="20" width="4" height="8" fill="#B91C1C" />
-            <line x1="100" y1="14" x2="100" y2="28" stroke="#16845B" strokeWidth="1" />
-            <rect x="98" y="16" width="4" height="9" fill="#16845B" />
-            <line x1="140" y1="10" x2="140" y2="24" stroke="#16845B" strokeWidth="1" />
-            <rect x="138" y="12" width="4" height="9" fill="#16845B" />
-            <line x1="180" y1="4" x2="180" y2="18" stroke="#16845B" strokeWidth="1" />
-            <rect x="178" y="6" width="4" height="10" fill="#16845B" />
-          </svg>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#77736B", marginTop: 2 }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #E5DFD5", borderRadius: 6, padding: "4px 6px", flex: 1, display: "flex", alignItems: "center" }}>
+            <svg width="100%" height="48" viewBox="0 0 200 48" fill="none" style={{ overflow: "visible" }}>
+              <path d="M 0,38 Q 40,32 75,26 T 140,18 T 200,10" stroke="#2563EB" strokeWidth="1.5" fill="none" opacity="0.85" />
+              <path d="M 0,42 Q 50,38 95,30 T 155,24 T 200,17" stroke="#D97706" strokeWidth="1.3" fill="none" opacity="0.8" />
+              <line x1="20" y1="28" x2="20" y2="42" stroke="#16845B" strokeWidth="1" />
+              <rect x="18" y="30" width="4" height="9" fill="#16845B" />
+              <line x1="50" y1="20" x2="50" y2="34" stroke="#B91C1C" strokeWidth="1" />
+              <rect x="48" y="22" width="4" height="9" fill="#B91C1C" />
+              <line x1="85" y1="16" x2="85" y2="32" stroke="#16845B" strokeWidth="1" />
+              <rect x="83" y="18" width="4" height="11" fill="#16845B" />
+              <line x1="120" y1="12" x2="120" y2="28" stroke="#16845B" strokeWidth="1" />
+              <rect x="118" y="14" width="4" height="11" fill="#16845B" />
+              <line x1="155" y1="8" x2="155" y2="24" stroke="#16845B" strokeWidth="1" />
+              <rect x="153" y="10" width="4" height="11" fill="#16845B" />
+              <line x1="188" y1="4" x2="188" y2="18" stroke="#16845B" strokeWidth="1" />
+              <rect x="186" y="6" width="4" height="10" fill="#16845B" />
+            </svg>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#77736B", marginTop: 4 }}>
             <span>SMA 20/50 Overlays</span>
             <span style={{ color: "#16845B", fontWeight: 700 }}>Paper Treasury Active</span>
           </div>
@@ -173,18 +202,22 @@ export function Landing() {
             <span style={{ fontSize: 9.5, fontWeight: 700, color: "#B45309", display: "flex", alignItems: "center", gap: 4 }}>
               🛡️ Benford's Law Watchdog
             </span>
-            <span style={{ fontSize: 8.5, background: "#FEF3C7", color: "#92400E", padding: "1px 5px", borderRadius: 3, fontWeight: 600 }}>0 Fraud</span>
+            <span style={{ fontSize: 8.5, background: "#FEF3C7", color: "#92400E", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+              1,420 Scanned
+            </span>
           </div>
-          <div style={{ background: "#FFFFFF", border: "1px solid #DCD6CA", borderRadius: 6, padding: "5px 7px", fontSize: 9 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#B91C1C", fontWeight: 600 }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #DCD6CA", borderRadius: 6, padding: "6px 8px", fontSize: 9, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#B91C1C", fontWeight: 700 }}>
               <span>⚠️ Split Invoice Detected</span>
               <span>₹49,500</span>
             </div>
-            <div style={{ color: "#77736B", fontSize: 8.5, marginTop: 2 }}>Vendor attempted bypass of ₹50k approval threshold.</div>
+            <div style={{ color: "#77736B", fontSize: 8.5, marginTop: 2, lineHeight: 1.35 }}>
+              Vendor attempted bypass of ₹50k single-signoff approval threshold.
+            </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#16845B", marginTop: 5, fontWeight: 600 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#16845B", marginTop: 5, fontWeight: 700 }}>
             <span>✓ Duplicate Invoice Guard</span>
-            <span>Bank Protected</span>
+            <span style={{ background: "#ECFDF5", padding: "1px 5px", borderRadius: 3 }}>Bank Protected</span>
           </div>
         </div>
       ),
@@ -197,18 +230,24 @@ export function Landing() {
       illustration: (
         <div className="feature-illustration">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-            <span style={{ fontSize: 9.5, color: "#77736B" }}>Safe Operating Cushion</span>
+            <span style={{ fontSize: 9.5, color: "#77736B", fontWeight: 600 }}>Operating Cash Cushion</span>
             <strong style={{ fontSize: 13, color: "#171717" }}>45 Days Runway</strong>
           </div>
-          <div style={{ height: 8, background: "#EAE5DA", borderRadius: 4, overflow: "hidden", display: "flex" }}>
-            <div style={{ width: "65%", background: "#16845B" }} />
-            <div style={{ width: "20%", background: "#F59E0B" }} />
-            <div style={{ width: "15%", background: "#B91C1C" }} />
+          <div style={{ background: "#FFFFFF", border: "1px solid #E5DFD5", borderRadius: 6, padding: "8px 9px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ height: 8, background: "#EAE5DA", borderRadius: 4, overflow: "hidden", display: "flex" }}>
+              <div style={{ width: "65%", background: "#16845B" }} />
+              <div style={{ width: "20%", background: "#F59E0B" }} />
+              <div style={{ width: "15%", background: "#B91C1C" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#77736B", marginTop: 6 }}>
+              <span>Opening: <strong>₹23.5L</strong></span>
+              <span>Burn: <strong>₹15.6L/mo</strong></span>
+              <span style={{ color: "#16845B", fontWeight: 700 }}>Optimal</span>
+            </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#77736B", marginTop: 4 }}>
-            <span>Opening: ₹23.5L</span>
-            <span>Burn: ₹15.6L/mo</span>
-            <span style={{ color: "#16845B", fontWeight: 700 }}>Optimal</span>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#16845B", marginTop: 4, fontWeight: 600 }}>
+            <span>Safe Floor: ₹15,00,000</span>
+            <span>Zero Deficit Projected</span>
           </div>
         </div>
       ),
@@ -222,24 +261,27 @@ export function Landing() {
         <div className="feature-illustration">
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5, fontWeight: 700, marginBottom: 4 }}>
             <span style={{ color: "#171717" }}>Leverage: Debt / Equity</span>
-            <span style={{ color: "#16845B" }}>0.539x (Low Risk)</span>
+            <span style={{ color: "#16845B", background: "#ECFDF5", border: "1px solid #A7F3D0", padding: "1px 6px", borderRadius: 4 }}>
+              0.539x (Low Risk)
+            </span>
           </div>
-          <div style={{ background: "#FFFFFF", border: "1px solid #DCD6CA", borderRadius: 6, padding: "5px 7px", fontSize: 8.5, display: "grid", gap: 2 }}>
+          <div style={{ background: "#FFFFFF", border: "1px solid #DCD6CA", borderRadius: 6, padding: "5px 8px", fontSize: 8.5, display: "grid", gap: 2.5, flex: 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>1. Term Loan (HDFC)</span>
+              <span style={{ color: "#4E4B45" }}>1. Term Loan (HDFC)</span>
               <strong>₹12,00,000</strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>2. Working Cap (SBI)</span>
+              <span style={{ color: "#4E4B45" }}>2. Working Cap (SBI)</span>
               <strong>₹9,00,000</strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>3. Machinery Line</span>
+              <span style={{ color: "#4E4B45" }}>3. Machinery Lease</span>
               <strong>₹7,10,000</strong>
             </div>
           </div>
-          <div style={{ textAlign: "right", fontSize: 8.5, color: "#77736B", marginTop: 3 }}>
-            Total EMI: <strong style={{ color: "#B91C1C" }}>₹1,26,000/mo</strong>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 8.5, marginTop: 4 }}>
+            <span style={{ color: "#77736B" }}>Monthly Commitments:</span>
+            <strong style={{ color: "#B91C1C", fontWeight: 700 }}>₹1,26,000/mo EMI</strong>
           </div>
         </div>
       ),
@@ -253,19 +295,142 @@ export function Landing() {
         <div className="feature-illustration">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
             <span style={{ fontSize: 9.5, fontWeight: 700, color: "#171717", display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16845B", boxShadow: "0 0 0 3px rgba(22, 132, 91, 0.2)" }} />
-              Active Daemon
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#16845B", boxShadow: "0 0 0 3px rgba(22, 132, 91, 0.2)" }} />
+              Active Daemon Scanner
             </span>
-            <span style={{ fontSize: 8.5, color: "#77736B" }}>Scans every 2 min</span>
+            <span style={{ fontSize: 8.5, color: "#77736B" }}>Pings every 2 min</span>
           </div>
-          <div style={{ background: "#FFFFFF", border: "1px solid #DCD6CA", borderRadius: 6, padding: "5px 7px", fontSize: 9 }}>
-            <div style={{ fontWeight: 600, color: "#171717" }}>⚡ Webhook & Email Dispatched</div>
-            <div style={{ color: "#77736B", fontSize: 8.5, marginTop: 1 }}>Receivables Alert: ₹6.61L Overdue &gt; 30 Days</div>
+          <div style={{ background: "#FFFFFF", border: "1px solid #DCD6CA", borderRadius: 6, padding: "6px 8px", fontSize: 9, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ fontWeight: 700, color: "#171717" }}>⚡ Webhook & Alert Dispatched</div>
+            <div style={{ color: "#77736B", fontSize: 8.5, marginTop: 2, lineHeight: 1.35 }}>
+              Receivables Watchdog: ₹6.61L Overdue &gt; 30 Days
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 4, marginTop: 4, fontSize: 8.5 }}>
-            <span style={{ background: "#ECFDF5", color: "#16845B", padding: "1px 5px", borderRadius: 3, fontWeight: 600 }}>Email Sent</span>
+          <div style={{ display: "flex", gap: 4, marginTop: 5, fontSize: 8.5 }}>
+            <span style={{ background: "#ECFDF5", color: "#16845B", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>Email Sent</span>
             <span style={{ background: "#F4F1E8", color: "#4E4B45", padding: "1px 5px", borderRadius: 3 }}>n8n Webhook</span>
             <span style={{ background: "#F4F1E8", color: "#4E4B45", padding: "1px 5px", borderRadius: 3 }}>Slack Alert</span>
+          </div>
+        </div>
+      ),
+    },
+  ];
+
+  const whyItems: WhyItem[] = [
+    {
+      number: "01",
+      title: "Better visibility",
+      description: "See financial performance, debt burden, and runway priorities from one connected view.",
+      illustration: (
+        <div className="why-illustration">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: "#171717", display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16845B" }} />
+              Unified Financial Radar
+            </span>
+            <span style={{ fontSize: 8.5, background: "#ECFDF5", color: "#16845B", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>All Accounts Live</span>
+          </div>
+          <div style={{ background: "#FFFFFF", border: "1px solid #E5DFD5", borderRadius: 6, padding: "7px 8px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, textAlign: "center", flex: 1, alignItems: "center" }}>
+            <div style={{ borderRight: "1px solid #F4F1E8", paddingRight: 2 }}>
+              <div style={{ fontSize: 8, color: "#77736B" }}>Margin</div>
+              <strong style={{ fontSize: 11, color: "#16845B" }}>18.7%</strong>
+            </div>
+            <div style={{ borderRight: "1px solid #F4F1E8", paddingRight: 2 }}>
+              <div style={{ fontSize: 8, color: "#77736B" }}>Runway</div>
+              <strong style={{ fontSize: 11, color: "#171717" }}>45 Days</strong>
+            </div>
+            <div>
+              <div style={{ fontSize: 8, color: "#77736B" }}>Cash</div>
+              <strong style={{ fontSize: 11, color: "#171717" }}>₹23.5L</strong>
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#77736B", marginTop: 4 }}>
+            <span>HDFC · SBI · GST Portal</span>
+            <span style={{ color: "#16845B", fontWeight: 700 }}>Zero Sync Delays</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      number: "02",
+      title: "Smarter decisions",
+      description: "Use causal simulations and debt calculations to evaluate actions before committing money.",
+      illustration: (
+        <div className="why-illustration">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: "#171717" }}>Causal Decision Matrix</span>
+            <span style={{ fontSize: 8.5, background: "#FEF3C7", color: "#92400E", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>Evaluation</span>
+          </div>
+          <div style={{ background: "#171717", borderRadius: 6, padding: "7px 9px", color: "#F5F1E8", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div style={{ fontSize: 8.5, color: "#C0BAAE", marginBottom: 2 }}>Question: "Hire 2 engineers this quarter?"</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#86EFAC" }}>
+              ✓ APPROVED · CASH EXPANSION
+            </div>
+            <div style={{ fontSize: 8.5, color: "#EAE5DA", marginTop: 2 }}>
+              Projected balance remains safe at <strong>₹28.4L</strong> with zero debt needed.
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#16845B", marginTop: 4, fontWeight: 700 }}>
+            <span>CFO Grounded Confidence</span>
+            <span>99.2%</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      number: "03",
+      title: "Early risk warning",
+      description: "Spot duplicate vendor bills, billing spikes, and covenant risks weeks before they happen.",
+      illustration: (
+        <div className="why-illustration">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: "#B91C1C", display: "flex", alignItems: "center", gap: 4 }}>
+              🛡️ Risk & Covenant Guard
+            </span>
+            <span style={{ fontSize: 8.5, background: "#FEF2F2", color: "#991B1B", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>Active</span>
+          </div>
+          <div style={{ background: "#FFFFFF", border: "1px solid #E5DFD5", borderRadius: 6, padding: "6px 8px", fontSize: 8.5, display: "grid", gap: 3, flex: 1, justifySelf: "stretch" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#16845B", fontWeight: 600 }}>
+              <span>✓ Duplicate Vendor Bill</span>
+              <span>Blocked (₹18.5k saved)</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#B45309", fontWeight: 600 }}>
+              <span>⚠️ Split Invoice Detected</span>
+              <span>₹49,500 Held</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", color: "#16845B", fontWeight: 600 }}>
+              <span>✓ Safe Cash Floor</span>
+              <span>Guarded &gt; ₹15L</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#77736B", marginTop: 4 }}>
+            <span>0 Breaches Detected</span>
+            <span style={{ color: "#16845B", fontWeight: 700 }}>Bank Account Protected</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      number: "04",
+      title: "Zero financial jargon",
+      description: "Move from dense financial formulas to plain-English guidance any business owner can act on.",
+      illustration: (
+        <div className="why-illustration">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: "#171717" }}>Jargon-to-Plain English</span>
+            <span style={{ fontSize: 8.5, background: "#ECFDF5", color: "#16845B", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>100% Clear</span>
+          </div>
+          <div style={{ background: "#FFFFFF", border: "1px solid #E5DFD5", borderRadius: 6, padding: "6px 8px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <div style={{ textDecoration: "line-through", color: "#9CA3AF", fontSize: 8.5, fontFamily: "var(--font-mono, monospace)" }}>
+              "Current Ratio 2.196 & DSCR 1.84x"
+            </div>
+            <div style={{ fontSize: 9.5, fontWeight: 600, color: "#16845B", lineHeight: 1.35, marginTop: 2 }}>
+              → "You own ₹2.20 in cash for every ₹1 in bills. You can safely pay all suppliers on time."
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8.5, color: "#77736B", marginTop: 4 }}>
+            <span>Zero Complex Math</span>
+            <span style={{ color: "#171717", fontWeight: 700 }}>Actionable Guidance</span>
           </div>
         </div>
       ),
@@ -679,13 +844,15 @@ export function Landing() {
           <div className="feature-grid">
             {features.map((item) => (
               <article className="feature-card" key={item.title}>
-                <div>
-                  <span className="feature-number">{item.number}</span>
-                  <div className="feature-icon" aria-hidden="true">↗</div>
+                {item.illustration}
+                <div className="feature-card-content">
+                  <div className="feature-card-header">
+                    <span className="feature-number">{item.number}</span>
+                    <div className="feature-icon" aria-hidden="true">↗</div>
+                  </div>
                   <h3>{item.title}</h3>
                   <p>{item.description}</p>
                 </div>
-                {item.illustration}
               </article>
             ))}
           </div>
@@ -746,26 +913,21 @@ export function Landing() {
             <h2>Less complexity.<br />More visibility.</h2>
           </div>
           <div className="why-grid">
-            <article>
-              <strong>01</strong>
-              <h3>Better visibility</h3>
-              <p>See financial performance, debt burden, and runway priorities from one connected view.</p>
-            </article>
-            <article>
-              <strong>02</strong>
-              <h3>Smarter decisions</h3>
-              <p>Use causal simulations and debt calculations to evaluate actions before committing money.</p>
-            </article>
-            <article>
-              <strong>03</strong>
-              <h3>Early risk warning</h3>
-              <p>Spot duplicate vendor bills, billing spikes, and covenant risks weeks before they happen.</p>
-            </article>
-            <article>
-              <strong>04</strong>
-              <h3>Zero financial jargon</h3>
-              <p>Move from dense financial formulas to plain-English guidance any business owner can act on.</p>
-            </article>
+            {whyItems.map((item) => (
+              <article key={item.title}>
+                {item.illustration}
+                <div className="why-card-content">
+                  <div className="why-card-header">
+                    <strong>{item.number}</strong>
+                    <span style={{ fontSize: 9.5, color: "#16845B", fontWeight: 700, background: "#ECFDF5", border: "1px solid #A7F3D0", padding: "1px 6px", borderRadius: 4 }}>
+                      Verified
+                    </span>
+                  </div>
+                  <h3>{item.title}</h3>
+                  <p>{item.description}</p>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
