@@ -3,7 +3,7 @@ import { AICFOAvatar } from "../ai/AICFOAvatar";
 
 const LINKS = [
   {
-    to: "/",
+    to: "/dashboard",
     label: "Dashboard",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -146,13 +146,11 @@ const LINKS = [
 export function Sidebar() {
   return (
     <aside className="sidebar">
-      <div className="brand" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <AICFOAvatar size={42} compact />
+      <div className="brand">
+        <div className="brand-badge"><AICFOAvatar size={44} compact expression="happy" label="FinSight AI" /></div>
         <div className="brand-title">
-          <span style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF" }}>FinSight AI</span>
-          <span className="brand-sub" style={{ fontSize: 10, fontWeight: 600, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            Executive Intelligence
-          </span>
+          <span>FinSight AI</span>
+          <span className="brand-sub">Executive Intelligence</span>
         </div>
       </div>
       <nav>

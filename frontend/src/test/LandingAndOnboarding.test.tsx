@@ -1,52 +1,45 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { describe, it, expect, beforeEach } from "vitest";
-import { LandingPage } from "../pages/LandingPage";
+import { AuthProvider } from "../lib/AuthContext";
+import { Landing } from "../pages/Landing";
 import { OnboardingModal } from "../components/onboarding/OnboardingModal";
 
-describe("LandingPage and OnboardingModal (Cream & Black Business Edition)", () => {
+describe("Landing and OnboardingModal from FinesightAI2.0", () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it("renders LandingPage with professional cream and black business sections", () => {
+  it("renders Landing page with exact FinesightAI2.0 theme, typography, hero and companion", () => {
     render(
-      <BrowserRouter>
-        <LandingPage />
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Landing />
+        </BrowserRouter>
+      </AuthProvider>
     );
 
-    // Hero title & badge
-    expect(
-      screen.getByText(/Plain-English Financial Intelligence for Business Owners/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Run your business finances with the clarity of a/i)
-    ).toBeInTheDocument();
+    // Brand and hero badge
+    expect(screen.getAllByText(/FinSight/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/YOUR INTELLIGENT AI CFO/i)).toBeInTheDocument();
 
-    // Live dashboard metrics preview
-    expect(screen.getByText(/Net Profit Margin/i)).toBeInTheDocument();
-    expect(screen.getByText(/Bill Payment Safety/i)).toBeInTheDocument();
-    expect(screen.getByText(/Closing Cash Buffer/i)).toBeInTheDocument();
-    expect(screen.getByText(/Debt Burden \(EMI\)/i)).toBeInTheDocument();
+    // Headline and subhead
+    expect(screen.getByText(/Your entire financial world,/i)).toBeInTheDocument();
+    expect(screen.getByText(/One intelligent AI CFO\./i)).toBeInTheDocument();
 
-    // Non-technical feature highlights
-    expect(
-      screen.getByText(/Spreadsheet & Document Reader/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Your 24\/7 AI Chief Financial Officer/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Test Decisions Before Spending Real Money/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Automatic Fraud & Duplicate Bill Shield/i)
-    ).toBeInTheDocument();
+    // Sections
+    expect(screen.getByText(/WHAT IS FINSIGHT AI\?/i)).toBeInTheDocument();
+    expect(screen.getByText(/WHAT CAN IT DO\?/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/HOW IT WORKS/i)[0]).toBeInTheDocument();
+    expect(screen.getByText(/MEET YOUR AI CFO/i)).toBeInTheDocument();
+    expect(screen.getByText(/WHY FINSIGHT AI\?/i)).toBeInTheDocument();
 
-    // Guided tour and Sign In CTAs
-    expect(screen.getAllByText(/Guided Tour/i)[0]).toBeInTheDocument();
-    expect(screen.getAllByText(/Sign In to Portal/i)[0]).toBeInTheDocument();
+    // Companion avatar
+    expect(screen.getByLabelText(/FinSight AI CFO companion/i)).toBeInTheDocument();
+
+    // Navigation and CTAs
+    expect(screen.getByRole("button", { name: /Guided Tour/i })).toBeInTheDocument();
+    expect(screen.getAllByText(/Get Started/i)[0]).toBeInTheDocument();
   });
 
   it("opens OnboardingModal and steps through all 6 product tour steps", () => {

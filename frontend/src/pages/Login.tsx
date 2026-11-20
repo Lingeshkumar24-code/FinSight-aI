@@ -1,394 +1,187 @@
-import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
-import { AICFOAvatar } from "../components/ai/AICFOAvatar";
+import { AICFOAvatar, type AssistantExpression } from "../components/ai/AICFOAvatar";
+
+type Phase = "idle" | "typing" | "submitting" | "success" | "error";
+
+const BUBBLE: Record<Phase, string> = {
+  idle: "Hi! I'm your AI CFO. Sign in and let's look at your numbers.",
+  typing: "Nice. Take your time — I'm just watching the cursor.",
+  submitting: "Checking your credentials…",
+  success: "Welcome back! Loading your dashboard.",
+  error: "Hmm, that didn't work. Check the details and try again.",
+};
+
+const EXPRESSION: Record<Phase, AssistantExpression> = {
+  idle: "neutral",
+  typing: "happy",
+  submitting: "loading",
+  success: "success",
+  error: "error",
+};
 
 export function Login() {
-  const { login, error } = useAuth();
+  const { login, error, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const initialMode = params.get("mode") === "register" ? "register" : params.get("mode") === "forgot" ? "forgot" : "login";
+  const [mode, setMode] = useState<"login" | "register" | "forgot">(initialMode);
   const [email, setEmail] = useState("owner@example.com");
-  const [password, setPassword] = useState("password123");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [shakeKey, setShakeKey] = useState(0);
+
+  useEffect(() => {
+    if (isAuthenticated) navigate("/dashboard", { replace: true });
+  }, [isAuthenticated, navigate]);
+
+  useEffect(() => {
+    if (phase === "success" && mode !== "forgot") {
+      const timer = window.setTimeout(() => navigate("/dashboard"), 700);
+      return () => window.clearTimeout(timer);
+    }
+  }, [phase, navigate, mode]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
+    if (phase === "submitting" || phase === "success") return;
+    if (mode === "forgot") {
+      setForgotSent(true);
+      setPhase("idle");
+      return;
+    }
+    setPhase("submitting");
     try {
       await login(email, password);
-      navigate("/");
+      setPhase("success");
     } catch {
-      // error handled in auth context
-    } finally {
-      setSubmitting(false);
+      // message is surfaced by the auth context
+      setPhase("error");
+      setShakeKey((k) => k + 1);
     }
   }
 
+  const busy = phase === "submitting" || phase === "success";
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        width: "100%",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-      }}
-    >
-      {/* ── Left Hero Side (Dark Cosmic Robot with Eye Tracking) ─────── */}
-      <div
-        style={{
-          flex: "1 1 50%",
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "48px 32px",
-          background: "linear-gradient(135deg, #090B1E 0%, #111438 50%, #0B0E23 100%)",
-          overflow: "hidden",
-        }}
-      >
-        {/* Glowing Decorative Blurred Orbs */}
-        <div
-          style={{
-            position: "absolute",
-            top: "14%",
-            right: "18%",
-            width: 180,
-            height: 180,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(236, 72, 153, 0.35) 0%, rgba(236, 72, 153, 0) 70%)",
-            filter: "blur(40px)",
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "16%",
-            left: "12%",
-            width: 220,
-            height: 220,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(56, 189, 248, 0.32) 0%, rgba(56, 189, 248, 0) 70%)",
-            filter: "blur(45px)",
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "40%",
-            right: "12%",
-            width: 140,
-            height: 140,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(147, 51, 234, 0.28) 0%, rgba(147, 51, 234, 0) 70%)",
-            filter: "blur(35px)",
-            pointerEvents: "none",
-          }}
-        />
-
-        {/* Content Container */}
-        <div
-          style={{
-            position: "relative",
-            zIndex: 10,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            maxWidth: 480,
-            textAlign: "center",
-          }}
-        >
-          {/* Eye-Tracking Robot Avatar */}
-          <div style={{ marginBottom: 12 }}>
-            <AICFOAvatar
-              size={170}
-              expression="happy"
-              coveringEyes={isPasswordFocused}
-            />
-          </div>
-
-          {/* Speech Bubble Pill */}
-          <div
-            style={{
-              background: "rgba(255, 255, 255, 0.08)",
-              backdropFilter: "blur(14px)",
-              WebkitBackdropFilter: "blur(14px)",
-              border: "1px solid rgba(255, 255, 255, 0.16)",
-              borderRadius: 9999,
-              padding: "10px 22px",
-              color: "#FFFFFF",
-              fontSize: 13.5,
-              fontWeight: 500,
-              boxShadow: "0 8px 24px rgba(0, 0, 0, 0.25)",
-              marginBottom: 24,
-            }}
-          >
-            Hi! I'm your AI CFO. Sign in and let's look at your numbers.
-          </div>
-
-          {/* Main Title */}
-          <h1
-            style={{
-              fontSize: 32,
-              fontWeight: 700,
-              color: "#FFFFFF",
-              margin: "0 0 10px 0",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Your Intelligent CFO
-          </h1>
-
-          {/* Subtitle */}
-          <p
-            style={{
-              fontSize: 14.5,
-              color: "#94A3B8",
-              margin: "0 0 32px 0",
-              lineHeight: 1.5,
-              maxWidth: 420,
-            }}
-          >
-            Analyze, predict, protect and optimize your business finances — with verified figures.
-          </p>
-
-          {/* Feature Pills */}
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 10 }}>
-            {["Forecasts", "Fraud checks", "What-If simulator", "Paper trading"].map((pill) => (
-              <span
-                key={pill}
-                style={{
-                  background: "rgba(255, 255, 255, 0.07)",
-                  backdropFilter: "blur(10px)",
-                  WebkitBackdropFilter: "blur(10px)",
-                  border: "1px solid rgba(255, 255, 255, 0.14)",
-                  borderRadius: 9999,
-                  padding: "7px 18px",
-                  color: "#E2E8F0",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  letterSpacing: "0.02em",
-                }}
-              >
-                {pill}
-              </span>
-            ))}
-          </div>
+    <div className="auth-shell">
+      <section className="auth-hero" aria-label="FinSight AI introduction">
+        <span className="auth-orb o1" aria-hidden="true" />
+        <span className="auth-orb o2" aria-hidden="true" />
+        <span className="auth-orb o3" aria-hidden="true" />
+        <AICFOAvatar size={190} expression={EXPRESSION[phase]} label="FinSight AI robot" />
+        <div className="auth-bubble" role="status" aria-live="polite">
+          {BUBBLE[phase]}
         </div>
-      </div>
+        <h2>Your Intelligent CFO</h2>
+        <p>Analyze, predict, protect and optimize your business finances — with verified figures.</p>
+        <div className="auth-chips" aria-hidden="true">
+          <span>Forecasts</span>
+          <span>Fraud checks</span>
+          <span>What-if simulator</span>
+          <span>Paper trading</span>
+        </div>
+      </section>
 
-      {/* ── Right Form Side (Clean White Sign-In Card) ────────────────── */}
-      <div
-        style={{
-          flex: "1 1 50%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "48px 32px",
-          background: "#FFFFFF",
-        }}
-      >
-        <div style={{ width: "100%", maxWidth: 390 }}>
-          {/* Back to Product Overview */}
-          <Link
-            to="/overview"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 12.5,
-              fontWeight: 600,
-              color: "#2563EB",
-              textDecoration: "none",
-              marginBottom: 16,
-            }}
-          >
-            ← Explore Product Overview
-          </Link>
+      <section className="auth-panel">
+        <div className={`auth-card${shakeKey && phase === "error" ? " is-shaking" : ""}`} key={shakeKey}>
+          <h1>FinSight AI</h1>
+          <p className="page-lead">Executive Business Financial Intelligence</p>
 
-          {/* Header */}
-          <div style={{ marginBottom: 32 }}>
-            <h2
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                color: "#0F172A",
-                margin: "0 0 6px 0",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              FinSight AI
-            </h2>
-            <p style={{ fontSize: 13.5, color: "#64748B", margin: 0, fontWeight: 500 }}>
-              Executive Business Financial Intelligence
-            </p>
-          </div>
+          {mode !== "forgot" && (
+            <div className="auth-tabs" role="tablist" aria-label="Authentication options">
+              <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setParams({ mode: "login" }); setPhase("idle"); }}>Login</button>
+              <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setParams({ mode: "register" }); setPhase("idle"); }}>Create Account</button>
+            </div>
+          )}
 
-          {/* Form */}
-          <form onSubmit={handleSubmit}>
-            {/* Email Field */}
-            <div style={{ marginBottom: 20 }}>
-              <label
-                htmlFor="email"
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "#475569",
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  marginBottom: 8,
-                }}
-              >
-                EXECUTIVE EMAIL
-              </label>
+          <form className="auth-form" onSubmit={handleSubmit}>
+            {mode === "register" && (
+              <div className="field">
+                <label htmlFor="fullName">Full Name</label>
+                <input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your name" autoComplete="name" required />
+              </div>
+            )}
+            <div className="field">
+              <label htmlFor="email">{mode === "forgot" ? "Account Email" : "Executive Email"}</label>
               <input
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="owner@example.com"
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setPhase("typing");
+                }}
+                onFocus={() => phase === "idle" && setPhase("typing")}
+                placeholder="name@company.com"
+                autoComplete="email"
                 required
-                style={{
-                  width: "100%",
-                  height: 48,
-                  padding: "0 16px",
-                  fontSize: 14,
-                  borderRadius: 10,
-                  border: "1px solid #E2E8F0",
-                  background: "#FFFFFF",
-                  color: "#0F172A",
-                  outline: "none",
-                  boxSizing: "border-box",
-                  transition: "border-color 0.2s, box-shadow 0.2s",
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "#6366F1";
-                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 102, 241, 0.15)";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "#E2E8F0";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
               />
             </div>
-
-            {/* Password Field with Show/Hide toggle */}
-            <div style={{ marginBottom: 24 }}>
-              <label
-                htmlFor="password"
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "#475569",
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  marginBottom: 8,
+            {mode !== "forgot" && <div className="field">
+              <label htmlFor="password">Security Password</label>
+              <input
+                id="password"
+                className="has-reveal"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPhase("typing");
                 }}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                required
+              />
+              <button
+                type="button"
+                className="reveal"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
               >
-                SECURITY PASSWORD
-              </label>
-              <div style={{ position: "relative", width: "100%" }}>
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onFocus={(e) => {
-                    setIsPasswordFocused(true);
-                    e.currentTarget.style.borderColor = "#6366F1";
-                    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99, 102, 241, 0.15)";
-                  }}
-                  onBlur={(e) => {
-                    setIsPasswordFocused(false);
-                    e.currentTarget.style.borderColor = "#E2E8F0";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                  placeholder="••••••••"
-                  required
-                  style={{
-                    width: "100%",
-                    height: 48,
-                    padding: "0 54px 0 16px",
-                    fontSize: 14,
-                    borderRadius: 10,
-                    border: "1px solid #E2E8F0",
-                    background: "#FFFFFF",
-                    color: "#0F172A",
-                    outline: "none",
-                    boxSizing: "border-box",
-                    transition: "border-color 0.2s, box-shadow 0.2s",
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  style={{
-                    position: "absolute",
-                    right: 14,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "#6366F1",
-                    cursor: "pointer",
-                  }}
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
-              </div>
-            </div>
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>}
 
-            {error && (
-              <p style={{ color: "#DC2626", fontSize: 13, margin: "0 0 16px 0", fontWeight: 500 }}>
+            {phase === "error" && error && (
+              <p className="auth-error" role="alert">
                 {error}
               </p>
             )}
+            {phase === "success" && <p className="auth-success">Signed in successfully.</p>}
+            {forgotSent && <p className="auth-success">If this demo account exists, password recovery instructions are ready for review.</p>}
 
-            {/* Gradient Sign In Button */}
             <button
+              className={`btn btn-primary btn-lg${phase === "submitting" ? " is-loading" : ""}`}
               type="submit"
-              disabled={submitting}
-              style={{
-                width: "100%",
-                height: 48,
-                borderRadius: 12,
-                border: "none",
-                background: "linear-gradient(135deg, #6366F1 0%, #38BDF8 100%)",
-                color: "#FFFFFF",
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: submitting ? "not-allowed" : "pointer",
-                boxShadow: "0 4px 14px rgba(99, 102, 241, 0.35)",
-                transition: "opacity 0.2s, transform 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                if (!submitting) e.currentTarget.style.opacity = "0.94";
-              }}
-              onMouseLeave={(e) => {
-                if (!submitting) e.currentTarget.style.opacity = "1";
-              }}
+              disabled={busy}
+              style={{ width: "100%" }}
             >
-              {submitting ? "Signing In…" : "Sign In to Portal"}
+              {phase === "submitting"
+                ? "Authenticating…"
+                : mode === "register"
+                  ? "Create Account"
+                  : mode === "forgot"
+                    ? "Request Recovery"
+                    : phase === "success"
+                      ? "Welcome!"
+                      : "Sign In to Portal"}
             </button>
+            {mode !== "forgot" ? (
+              <button type="button" className="auth-link" onClick={() => { setMode("forgot"); setParams({ mode: "forgot" }); setForgotSent(false); }}>Forgot Password?</button>
+            ) : (
+              <button type="button" className="auth-link" onClick={() => { setMode("login"); setParams({ mode: "login" }); setForgotSent(false); }}>Back to Login</button>
+            )}
           </form>
 
-          {/* Subtext */}
-          <div style={{ textAlign: "center", marginTop: 22 }}>
-            <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>
-              Demo Authentication Enabled · Any password accepted
-            </p>
-          </div>
+          <p className="auth-note">Demo Authentication Enabled · Any password accepted</p>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

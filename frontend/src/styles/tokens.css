@@ -6,37 +6,37 @@
 
 :root {
   /* ---- Editorial Cream Paper Surfaces ---- */
-  --paper: #F8F6F0;           /* Luxurious warm cream paper background */
-  --paper-warm: #F2EFE7;      /* Deeper warm linen tone */
+  --paper: #F7F5EF;           /* Luxurious warm ivory background */
+  --paper-warm: #F1EEE4;      /* Deeper warm linen tone */
   --surface: #FFFFFF;         /* Crisp pure white for cards and modules */
-  --surface-raised: #FAF8F5;  /* Subtle raised cream-white */
-  --surface-subtle: #F4F1EA;  /* Light warm cream for table headers/inputs */
+  --surface-raised: #FCFBF7;  /* Subtle raised cream-white */
+  --surface-subtle: #F4F1E8;  /* Light warm cream for table headers/inputs */
 
   /* ---- Borders ---- */
-  --border: #E6E0D4;          /* Elegant warm stone border */
-  --border-strong: #CDC4B3;   /* High-contrast border for active/hover */
-  --border-subtle: #EFECE4;   /* Very soft divider */
+  --border: #E7E5DC;          /* Elegant warm stone border */
+  --border-strong: #CFCAB9;   /* High-contrast border for active/hover */
+  --border-subtle: #EFEEE7;   /* Very soft divider */
 
   /* ---- Executive Typography / Ink ---- */
-  --ink: #0F172A;             /* Deepest midnight charcoal — primary headings & figures */
-  --ink-soft: #334155;        /* Refined slate — secondary copy */
-  --ink-muted: #64748B;       /* Muted slate — labels, timestamps, benchmarks */
-  --ink-faint: #94A3B8;
+  --ink: #242923;             /* Deep charcoal — primary headings & figures */
+  --ink-soft: #4B554D;        /* Refined sage charcoal — secondary copy */
+  --ink-muted: #788579;       /* Muted sage — labels, timestamps, benchmarks */
+  --ink-faint: #A1AAA2;
 
   /* ---- Monochrome High-Contrast Buttons (Black & White) ---- */
-  --btn-primary-bg: #0A0A0A;
+  --btn-primary-bg: #123B2A;
   --btn-primary-text: #FFFFFF;
-  --btn-primary-hover: #262626;
+  --btn-primary-hover: #16845B;
   --btn-secondary-bg: #FFFFFF;
-  --btn-secondary-border: #0A0A0A;
-  --btn-secondary-text: #0A0A0A;
-  --btn-secondary-hover-bg: #0A0A0A;
+  --btn-secondary-border: #123B2A;
+  --btn-secondary-text: #123B2A;
+  --btn-secondary-hover-bg: #123B2A;
   --btn-secondary-hover-text: #FFFFFF;
 
   /* ---- Financial Status & Accents (Preserved for data fidelity) ---- */
-  --accent: #0F172A;          /* Primary visual brand anchor: Deep Executive Black/Navy */
-  --brand: #0F172A;
-  --positive: #047857;        /* Forest emerald for positive financial yield */
+  --accent: #16845B;          /* Rich emerald brand anchor */
+  --brand: #123B2A;
+  --positive: #16845B;        /* Emerald for positive financial yield */
   --positive-soft: #ECFDF5;
   --positive-border: #A7F3D0;
   
@@ -51,14 +51,14 @@
   /* Backward compat aliases for engine charts */
   --accent-soft: #ECFDF5;
   --accent-border: #A7F3D0;
-  --gold: #B45309;
+  --gold: #D6B477;
 
   /* ---- Sidebar Theme (Refined Executive Linen) ---- */
-  --sidebar-bg: #F4EFE6;
-  --sidebar-border: #E5DFD3;
-  --sidebar-text: #0F172A;
-  --sidebar-link: #475569;
-  --sidebar-link-active: #0A0A0A;
+  --sidebar-bg: #F4F1E8;
+  --sidebar-border: #E7E5DC;
+  --sidebar-text: #242923;
+  --sidebar-link: #788579;
+  --sidebar-link-active: #123B2A;
   --sidebar-link-active-bg: #FFFFFF;
   --sidebar-hover-bg: rgba(0, 0, 0, 0.04);
 
