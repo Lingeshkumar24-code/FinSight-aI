@@ -27,6 +27,7 @@ class Settings(BaseSettings):
         "http://localhost:4173",
         "http://localhost:80",
         "http://frontend:80",
+        "https://finsight-frontend-2w1v.onrender.com",
     ]
 
     # --- Auth (JWT issued by this API; swap for Supabase Auth JWKS verification in prod) ---
