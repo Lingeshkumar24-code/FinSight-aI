@@ -1,10 +1,18 @@
 from __future__ import annotations
 
 import time
-
 import httpx
 
 from .base import CompletionRequest, CompletionResponse, LLMProvider, ProviderError
+
+
+_FALLBACK_MODELS = [
+    "openai/gpt-oss-120b",
+    "qwen/qwen3.8-27b",
+    "openai/gpt-oss-20b",
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+]
 
 
 class GroqProvider(LLMProvider):
@@ -16,7 +24,7 @@ class GroqProvider(LLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "llama-3.1-8b-instant",
+        model: str = "openai/gpt-oss-120b",
         timeout: float = 30.0,
     ) -> None:
         self.api_key = api_key
@@ -30,35 +38,52 @@ class GroqProvider(LLMProvider):
             messages.append({"role": "system", "content": request.system})
         messages.append({"role": "user", "content": request.prompt})
 
+        # Models to attempt if initial returns 404 (model not found on account)
+        models_to_try = [self.model] + [m for m in _FALLBACK_MODELS if m != self.model]
         started = time.perf_counter()
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(
-                    self._base_url,
-                    headers={"Authorization": f"Bearer {self.api_key}"},
-                    json={
-                        "model": self.model,
-                        "messages": messages,
-                        "temperature": request.temperature,
-                        "max_tokens": request.max_tokens,
-                    },
-                )
-            resp.raise_for_status()
-            data = resp.json()
-            text = data["choices"][0]["message"].get("content")
-            usage = data.get("usage", {})
-        except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-            raise ProviderError(f"Groq provider failed: {exc}") from exc
+        last_error: Exception | None = None
 
-        if not isinstance(text, str) or not text.strip():
-            raise ProviderError("Groq returned an empty completion")
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            for model_name in models_to_try:
+                try:
+                    resp = await client.post(
+                        self._base_url,
+                        headers={"Authorization": f"Bearer {self.api_key}"},
+                        json={
+                            "model": model_name,
+                            "messages": messages,
+                            "temperature": request.temperature,
+                            "max_tokens": request.max_tokens,
+                        },
+                    )
+                    # If 404 model not found, try next available model on Groq
+                    if resp.status_code == 404 and "model" in resp.text.lower():
+                        continue
 
-        latency_ms = (time.perf_counter() - started) * 1000
-        return CompletionResponse(
-            text=text,
-            provider=self.name,
-            model=self.model,
-            latency_ms=latency_ms,
-            input_tokens=usage.get("prompt_tokens"),
-            output_tokens=usage.get("completion_tokens"),
-        )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    text = data["choices"][0]["message"].get("content")
+                    usage = data.get("usage", {})
+
+                    if not isinstance(text, str) or not text.strip():
+                        raise ProviderError("Groq returned an empty completion")
+
+                    latency_ms = (time.perf_counter() - started) * 1000
+                    return CompletionResponse(
+                        text=text,
+                        provider=self.name,
+                        model=model_name,
+                        latency_ms=latency_ms,
+                        input_tokens=usage.get("prompt_tokens"),
+                        output_tokens=usage.get("completion_tokens"),
+                    )
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code == 404 and "model" in exc.response.text.lower():
+                        continue
+                    last_error = exc
+                    break
+                except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
+                    last_error = exc
+                    break
+
+        raise ProviderError(f"Groq provider failed: {last_error or 'all models returned 404'}")

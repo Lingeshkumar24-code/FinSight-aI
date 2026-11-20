@@ -440,7 +440,13 @@ def make_generate_response(llm_router: LLMRouter | None):
         if llm_router is None:
             return {"final_response": _template_response(state)}
 
-        rag_context = state.get("tool_result", {}).get("context", "")
+        tool_res = state.get("tool_result", {})
+        tool_computed = {k: v for k, v in tool_res.items() if k not in ("context", "agentic_decision")}
+
+        rag_context = tool_res.get("context", "")
+        if len(rag_context) > 4000:
+            rag_context = rag_context[:4000] + "\n...[additional context truncated for brevity]..."
+
         context_section = f"\nRetrieved document context:\n{rag_context}\n" if rag_context else ""
         business_context = state.get("extracted_params", {}).get("_business_context", "")
         business_section = (
@@ -448,12 +454,12 @@ def make_generate_response(llm_router: LLMRouter | None):
             if isinstance(business_context, str) and business_context.strip()
             else ""
         )
-        agentic_decision = state.get("tool_result", {}).get("agentic_decision", "")
+        agentic_decision = tool_res.get("agentic_decision", "")
         agentic_section = f"\nExpert Agentic Decision & Verified Figures:\n{agentic_decision}\n" if agentic_decision else ""
 
         prompt = (
             f"User question: {state.get('user_query', '')}\n"
-            f"Computed result (JSON-like): {state.get('tool_result', {})}\n"
+            f"Computed result: {tool_computed}\n"
             f"{business_section}"
             f"{agentic_section}"
             f"{context_section}"
