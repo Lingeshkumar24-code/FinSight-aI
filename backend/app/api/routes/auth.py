@@ -58,7 +58,10 @@ async def register(
     # Check if user already exists
     existing = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account with this email already exists")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists. Please log in instead.",
+        )
 
     # Generate isolated workspace business_id and user_id
     user_id = str(uuid.uuid4())
@@ -115,29 +118,17 @@ async def login(
     # Look up existing user
     user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
     if not user:
-        if settings.ALLOW_DEMO_AUTH:
-            # Auto-provision dedicated user & isolated workspace
-            user_id = str(uuid.uuid4())
-            prefix = re.sub(r"[^a-zA-Z0-9]", "", email.split("@")[0])[:12].lower() or "user"
-            business_id = f"biz-{prefix}-{uuid.uuid4().hex[:6]}"
-            session.add(Business(id=business_id, name=f"{prefix.capitalize()}'s Workspace", currency="INR"))
-            await session.flush()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No account found with this email. Please create an account first.",
+        )
 
-            user = User(
-                id=user_id,
-                email=email,
-                password_hash=_hash_password(payload.password),
-                full_name=prefix.capitalize(),
-                business_id=business_id,
-                role="owner",
-            )
-            session.add(user)
-            await session.commit()
-        else:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-    else:
-        if not _verify_password(payload.password, user.password_hash) and not settings.ALLOW_DEMO_AUTH:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    # Enforce strict password verification against the PBKDF2 hash stored during account creation
+    if not _verify_password(payload.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password. Please verify and try again.",
+        )
 
     token = create_access_token(
         user_id=user.id, business_id=user.business_id, role=user.role, settings=settings

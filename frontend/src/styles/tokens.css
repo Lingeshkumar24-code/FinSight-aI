@@ -848,12 +848,12 @@ label {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  margin-bottom: var(--space-4);
+  margin-bottom: 0;
   padding: var(--space-3);
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-soft);
-  min-height: 380px;
+  min-height: 0;
 }
 
 .chat-bubble {

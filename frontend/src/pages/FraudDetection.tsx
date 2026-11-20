@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { api, ApiError, type FraudAlert, type FraudSummary, type FraudTransaction, type FraudUpload } from "../lib/api";
 import { Card } from "../components/ui/Card";
 
@@ -13,6 +13,9 @@ export function FraudDetection() {
   const [upload, setUpload] = useState<FraudUpload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     const [summaryResult, alertResult, transactionResult] = await Promise.allSettled([
@@ -29,9 +32,8 @@ export function FraudDetection() {
     void load();
   }, []);
 
-  async function importFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  async function processFile(file: File) {
+    setSelectedFileName(file.name);
     setBusy(true);
     setError(null);
     try {
@@ -42,6 +44,21 @@ export function FraudDetection() {
       setError(err instanceof ApiError ? err.message : "Could not scan transactions");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function importFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+  }
+
+  function handleDrop(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      void processFile(file);
     }
   }
 
@@ -82,7 +99,100 @@ export function FraudDetection() {
           <h2>Scan Transaction CSV</h2>
           <span className="section-run">transaction_id, date, amount, vendor, reference</span>
         </div>
-        <input aria-label="Fraud transaction CSV" type="file" accept=".csv,text/csv" onChange={(e) => void importFile(e)} disabled={busy} />
+
+        {/* Hidden accessible file input for test automation and screen readers */}
+        <input
+          ref={fileInputRef}
+          aria-label="Fraud transaction CSV"
+          type="file"
+          accept=".csv,text/csv"
+          onChange={(e) => void importFile(e)}
+          disabled={busy}
+          style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+        />
+
+        {/* Attractive Executive Upload Dropzone */}
+        <div
+          role="region"
+          aria-label="Upload CSV Dropzone"
+          onClick={() => !busy && fileInputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          style={{
+            border: `2px dashed ${isDragging ? "#16845B" : "#DCD6CA"}`,
+            borderRadius: 14,
+            background: isDragging ? "#F0FDF4" : "#FCFAF6",
+            padding: "26px 20px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            cursor: busy ? "not-allowed" : "pointer",
+            transition: "all 0.2s ease",
+            textAlign: "center",
+          }}
+          onMouseEnter={(e) => {
+            if (!busy && !isDragging) {
+              e.currentTarget.style.borderColor = "#A58A62";
+              e.currentTarget.style.background = "#F9F6F0";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!busy && !isDragging) {
+              e.currentTarget.style.borderColor = "#DCD6CA";
+              e.currentTarget.style.background = "#FCFAF6";
+            }
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", justifyContent: "center" }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy}
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 22px",
+                fontSize: 13.5,
+                fontWeight: 600,
+                borderRadius: 10,
+                boxShadow: "0 4px 14px rgba(23, 23, 23, 0.12)",
+                cursor: busy ? "not-allowed" : "pointer",
+              }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span>{busy ? "Scanning Transactions…" : selectedFileName ? "Change Transaction CSV" : "Choose Transaction CSV"}</span>
+            </button>
+            <span style={{ fontSize: 13, color: selectedFileName ? "#16845B" : "#77736B", fontWeight: selectedFileName ? 600 : 400 }}>
+              {selectedFileName ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ color: "#16845B" }}>✓</span> {selectedFileName}
+                </span>
+              ) : (
+                "or drag and drop bank statement / transaction CSV here"
+              )}
+            </span>
+          </div>
+          <div style={{ fontSize: 11.5, color: "#8E887E", display: "flex", gap: 14, flexWrap: "wrap", justifyContent: "center" }}>
+            <span>• RFC 4180 CSV Compliant</span>
+            <span>• Columns: transaction_id, date, amount, vendor</span>
+            <span>• Benford's Law &amp; Duplicate Invoice Check</span>
+          </div>
+        </div>
         {upload && (
           <p className="muted-note mt-3">
             {upload.alerts_created} alerts from {upload.valid} valid rows · {upload.invalid} invalid rows

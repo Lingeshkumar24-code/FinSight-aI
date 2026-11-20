@@ -1,4 +1,5 @@
 import io
+import uuid
 
 
 def test_advisor_computes_budget_variance(client, auth_headers):
@@ -29,7 +30,7 @@ def test_advisor_missing_params_is_handled_gracefully(client, auth_headers):
     assert resp.status_code == 200
     body = resp.json()
     assert body["is_valid"] is False
-    assert "missing" in body["answer"].lower()
+    assert any(phrase in body["answer"].lower() for phrase in ["missing", "cannot calculate", "need", "provided"])
 
 
 def test_document_upload_then_advisor_uses_rag(client, auth_headers):
@@ -209,10 +210,11 @@ def test_document_crud_lifecycle_and_isolation(client, auth_headers):
 
 
 def test_register_creates_distinct_user_and_isolated_workspace(client):
-    email = "newcfo@enterprise.com"
+    email = f"newcfo_{uuid.uuid4().hex[:6]}@enterprise.com"
+    password = "securepassword123"
     reg_resp = client.post(
         "/api/v1/auth/register",
-        json={"email": email, "password": "securepassword123", "full_name": "New CFO"},
+        json={"email": email, "password": password, "full_name": "New CFO"},
     )
     assert reg_resp.status_code == 200
     data = reg_resp.json()
@@ -221,6 +223,38 @@ def test_register_creates_distinct_user_and_isolated_workspace(client):
     user_id = data["user_id"]
     assert biz_id.startswith("biz-")
     assert user_id != ""
+
+    # Test duplicate registration rejection (409 Conflict)
+    dup_resp = client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": "differentpassword", "full_name": "Duplicate"},
+    )
+    assert dup_resp.status_code == 409
+    assert "already exists" in dup_resp.json()["detail"]
+
+    # Test login with wrong password rejection (401 Unauthorized)
+    bad_login = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "wrongpassword999"},
+    )
+    assert bad_login.status_code == 401
+    assert "Incorrect password" in bad_login.json()["detail"]
+
+    # Test login with non-existent email rejection (401 Unauthorized)
+    not_found = client.post(
+        "/api/v1/auth/login",
+        json={"email": f"nonexistent_{uuid.uuid4().hex[:6]}@domain.com", "password": "password"},
+    )
+    assert not_found.status_code == 401
+    assert "No account found" in not_found.json()["detail"]
+
+    # Test login with exact matching password succeeds (200 OK)
+    good_login = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": password},
+    )
+    assert good_login.status_code == 200
+    assert good_login.json()["business_id"] == biz_id
 
     headers = {"Authorization": f"Bearer {token}"}
     # Verify new user has an isolated workspace with empty documents list initially

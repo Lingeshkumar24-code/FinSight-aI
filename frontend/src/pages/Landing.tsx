@@ -997,13 +997,122 @@ export function Landing() {
       </main>
 
       {/* ── Footer ─────────────────────────────────────────────────── */}
-      <footer className="landing-footer">
-        <button className="landing-brand" onClick={() => scrollToId("top")}>
-          <span className="brand-mark">F</span>
-          <span>FinSight <strong>AI</strong></span>
-        </button>
-        <p>AI-powered business financial intelligence.</p>
-        <button onClick={() => navigate("/login")}>Sign In</button>
+      <footer
+        className="landing-footer"
+        style={{
+          borderTop: "1px solid #DCD6CA",
+          background: "#FFFEFA",
+          padding: "54px 5vw 36px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 32,
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 36,
+            width: "100%",
+          }}
+        >
+          {/* Col 1: Brand & Overview */}
+          <div>
+            <button className="landing-brand" onClick={() => scrollToId("top")} style={{ marginBottom: 12 }}>
+              <span className="brand-mark">F</span>
+              <span>FinSight <strong>AI</strong></span>
+            </button>
+            <p style={{ color: "#77736B", fontSize: 13, lineHeight: 1.6, margin: "0 0 14px 0" }}>
+              Enterprise business financial intelligence, multi-agent RAG deliberation, and deterministic cash flow risk engine.
+            </p>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, background: "#F5F1E8", color: "#16845B", padding: "4px 10px", borderRadius: 6, fontWeight: 700 }}>
+              <span>🛡️ SOC 2 &amp; ISO 27001 Ready Architecture</span>
+            </div>
+          </div>
+
+          {/* Col 2: Platform Navigation */}
+          <div>
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: "#171717", letterSpacing: "0.08em", marginBottom: 14 }}>
+              PLATFORM
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
+              <button onClick={() => scrollToId("platform")} style={{ textAlign: "left", padding: 0 }}>Overview &amp; Architecture</button>
+              <button onClick={() => scrollToId("preview")} style={{ textAlign: "left", padding: 0 }}>Live Financial Dashboard</button>
+              <button onClick={() => scrollToId("features")} style={{ textAlign: "left", padding: 0 }}>Modular Risk Tools</button>
+              <button onClick={() => scrollToId("how-it-works")} style={{ textAlign: "left", padding: 0 }}>Getting Started Guide</button>
+              <button onClick={() => setTourOpen(true)} style={{ textAlign: "left", padding: 0, color: "#2563EB", fontWeight: 600 }}>🎓 Launch Product Tour</button>
+            </div>
+          </div>
+
+          {/* Col 3: Intelligence & Capabilities */}
+          <div>
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: "#171717", letterSpacing: "0.08em", marginBottom: 14 }}>
+              CAPABILITIES
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, color: "#77736B" }}>
+              <span>• Multi-Agent RAG Financial Deliberation</span>
+              <span>• Causal What-If Scenario Simulator</span>
+              <span>• Benford's Law Vendor Fraud Shield</span>
+              <span>• Indian Stock Market Analysis (NSE / BSE)</span>
+              <span>• Paper Trading &amp; Idle Cash Treasury</span>
+            </div>
+          </div>
+
+          {/* Col 4: Licensing & Legal Disclosures */}
+          <div>
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: "#171717", letterSpacing: "0.08em", marginBottom: 14 }}>
+              LICENSE &amp; COPYRIGHT
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12.5, color: "#77736B", lineHeight: 1.55 }}>
+              <div>
+                <strong style={{ color: "#171717" }}>Apache License 2.0</strong>
+                <div>Open Core Community Distribution &amp; Commercial Enterprise Edition.</div>
+              </div>
+              <div style={{ marginTop: 4 }}>
+                <strong style={{ color: "#171717" }}>SEBI / SEC Disclaimer</strong>
+                <div style={{ fontSize: 11.5, color: "#8E887E" }}>
+                  Deterministic mathematical models over verified filings. Not registered financial investment advice.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Bar: Copyright, Terms & Sign In */}
+        <div
+          style={{
+            borderTop: "1px solid #ECE7DE",
+            paddingTop: 20,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 16,
+            fontSize: 12,
+            color: "#8E887E",
+            width: "100%",
+          }}
+        >
+          <div>
+            © 2026 FinSight AI Inc. All rights reserved. Registered under Apache 2.0 &amp; Enterprise License.
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+            <span>Privacy Policy</span>
+            <span>Terms of Service</span>
+            <span>Security Architecture</span>
+            <button
+              onClick={() => navigate("/login")}
+              className="btn btn-primary btn-sm"
+              style={{
+                borderRadius: 8,
+                padding: "6px 16px",
+                fontSize: 12.5,
+              }}
+            >
+              Sign In to Portal →
+            </button>
+          </div>
+        </div>
       </footer>
 
       {/* ── Guided Onboarding Walkthrough Modal ──────────────────────── */}

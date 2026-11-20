@@ -183,7 +183,7 @@ export function Login() {
             )}
           </form>
 
-          <p className="auth-note">Demo Authentication Enabled · Any password accepted</p>
+          <p className="auth-note">Enterprise PBKDF2-HMAC Authentication · Instant demo access via owner@example.com</p>
         </div>
       </section>
     </div>

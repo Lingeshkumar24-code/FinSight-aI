@@ -1358,6 +1358,9 @@ export function LandingPage() {
       >
         <div>
           <strong>FinSight AI</strong> · Plain-English Financial Intelligence for Growing Businesses.
+          <div style={{ fontSize: 11.5, color: "#A8A29E", marginTop: 4 }}>
+            © 2026 FinSight AI Inc. All rights reserved. Licensed under Apache 2.0 &amp; Enterprise Commercial Terms.
+          </div>
         </div>
         <div style={{ display: "flex", gap: 20 }}>
           <button
