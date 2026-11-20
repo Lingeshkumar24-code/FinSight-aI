@@ -11,7 +11,7 @@ import {
   type WatchlistItem,
 } from "../lib/api";
 import { Card } from "../components/ui/Card";
-import { LineChart } from "./Dashboard";
+import { StockChart } from "../components/market/StockChart";
 
 // ── Exchange-aware symbol sets ──────────────────────────────────────────────
 const EXCHANGE_SYMBOLS: Record<string, string[]> = {
@@ -269,7 +269,6 @@ export function MarketIntelligence() {
     }
   }
 
-  const closes = (history?.points ?? []).map((point) => point.close);
   const isDemo = quote?.data_status === "DEMO" || quote?.data_status === "CACHED";
 
   // ── Derived outlook data for the enhanced analysis card ──────────────────
@@ -870,17 +869,14 @@ export function MarketIntelligence() {
             </div>
           </div>
 
-          <Card>
-            <div className="section-header">
-              <h2>{symbol} Price History</h2>
-              <span className="section-run">Adjusted close · {closes.length} sessions</span>
-            </div>
-            {closes.length > 1 ? (
-              <LineChart data={closes} width={720} height={150} color={isDemo ? "#B45309" : "#047857"} />
-            ) : (
-              <div className="skeleton" style={{ height: 150 }} />
-            )}
-          </Card>
+          <div style={{ marginTop: 20 }}>
+            <StockChart
+              symbol={symbol}
+              quote={quote}
+              points={history?.points ?? []}
+              currencySymbol="₹"
+            />
+          </div>
         </>
       )}
 
