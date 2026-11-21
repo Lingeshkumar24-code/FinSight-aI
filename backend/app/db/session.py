@@ -38,6 +38,7 @@ async def _ensure_sqlite_columns() -> None:
             "operating_cash_flow": "FLOAT",
             "investing_cash_flow": "FLOAT",
             "financing_cash_flow": "FLOAT",
+            "net_cash_flow": "FLOAT",
             "opening_cash": "FLOAT",
             "closing_cash": "FLOAT",
             "source": "TEXT DEFAULT 'manual'",

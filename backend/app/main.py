@@ -60,6 +60,8 @@ async def _periodic_n8n_monitor_task(settings):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    if settings.ENV.lower() == "production" and settings.DATABASE_URL.lower().startswith("sqlite"):
+        raise RuntimeError("Production requires a persistent PostgreSQL DATABASE_URL; SQLite storage is ephemeral on Render.")
     configure_logging(settings.ENV)
 
     # Swap InMemoryVectorStore for the Supabase-pgvector-backed store in
@@ -77,24 +79,32 @@ async def lifespan(app: FastAPI):
         # Without this, an upload would appear to succeed but disappear from
         # RAG after the process was recycled.
         rows = (await session.execute(
-            select(DocumentChunkRow, Document)
+            select(
+                DocumentChunkRow.id.label("chunk_id"),
+                DocumentChunkRow.text.label("chunk_text"),
+                DocumentChunkRow.chunk_index,
+                DocumentChunkRow.source_location,
+                Document.id.label("document_id"),
+                Document.business_id,
+                Document.filename,
+            )
             .join(Document, Document.id == DocumentChunkRow.document_id)
             .where(Document.status == "processed")
-        )).all()
+        )).mappings().all()
         app.state.vector_store.upsert([
             DocumentChunk(
-                id=chunk.id,
-                text=chunk.text,
-                source=document.filename,
+                id=row["chunk_id"],
+                text=row["chunk_text"],
+                source=row["filename"],
                 metadata={
-                    "business_id": document.business_id,
-                    "document_id": document.id,
-                    "filename": document.filename,
-                    "chunk_index": chunk.chunk_index,
-                    "source_location": chunk.source_location,
+                    "business_id": row["business_id"],
+                    "document_id": row["document_id"],
+                    "filename": row["filename"],
+                    "chunk_index": row["chunk_index"],
+                    "source_location": row["source_location"],
                 },
             )
-            for chunk, document in rows
+            for row in rows
         ])
 
     monitor_task = asyncio.create_task(_periodic_n8n_monitor_task(settings))

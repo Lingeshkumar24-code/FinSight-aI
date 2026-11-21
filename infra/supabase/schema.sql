@@ -141,6 +141,7 @@ create table if not exists financial_records (
     operating_cash_flow numeric,
     investing_cash_flow numeric,
     financing_cash_flow numeric,
+    net_cash_flow numeric,
     opening_cash numeric,
     closing_cash numeric,
     source text default 'manual',
