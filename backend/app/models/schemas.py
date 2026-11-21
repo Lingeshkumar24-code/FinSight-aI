@@ -244,6 +244,7 @@ class WhatIfResponse(BaseModel):
 
 class AdvisorRequest(BaseModel):
     query: str
+    document_id: str | None = None
     extracted_params: dict = Field(default_factory=dict)
 
 

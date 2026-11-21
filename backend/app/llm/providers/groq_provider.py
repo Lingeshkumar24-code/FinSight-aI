@@ -7,10 +7,11 @@ from .base import CompletionRequest, CompletionResponse, LLMProvider, ProviderEr
 
 
 _FALLBACK_MODELS = [
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
-    "mixtral-8x7b-32768",
-    "gemma2-9b-it",
 ]
 
 
@@ -23,11 +24,11 @@ class GroqProvider(LLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "llama-3.3-70b-versatile",
+        model: str = "openai/gpt-oss-120b",
         timeout: float = 30.0,
     ) -> None:
         self.api_key = (api_key or "").strip()
-        self.model = (model or "llama-3.3-70b-versatile").strip()
+        self.model = (model or "openai/gpt-oss-120b").strip()
         self.timeout = timeout
         self._base_url = "https://api.groq.com/openai/v1/chat/completions"
 

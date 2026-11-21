@@ -74,7 +74,7 @@ async def test_email_service_dev_mode():
 def test_api_otp_send_and_verify_flow():
     otp_service.clear()
     client = TestClient(app)
-    test_email = "newcfo@fintechcorp.in"
+    test_email = f"newcfo_{uuid.uuid4().hex[:6]}@fintechcorp.in"
 
     # Step 1: Send OTP
     send_resp = client.post("/api/v1/auth/otp/send", json={"email": test_email, "purpose": "login"})

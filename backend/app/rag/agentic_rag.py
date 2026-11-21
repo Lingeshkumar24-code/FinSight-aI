@@ -32,11 +32,36 @@ class FinancialIntent(str, Enum):
     STOCK_INVESTMENT = "stock_investment"
     REVENUE = "revenue"
     EXPENSES = "expenses"
+    CASH_FLOW = "cash_flow"
     RISK = "risk"
     BALANCE_SHEET = "balance_sheet"
     INCOME_STATEMENT = "income_statement"
     RATIOS = "ratios"
     GENERAL = "general"
+
+
+def _format_inr(val: float, decimals: int = 0) -> str:
+    """Format a monetary or numerical value according to Indian numbering system (Lakhs / Crores)."""
+    is_neg = val < 0
+    val = abs(val)
+    int_part = int(round(val, decimals))
+    dec_str = f"{val:.{decimals}f}".split(".")[1] if decimals > 0 else ""
+    s = str(int_part)
+    if len(s) <= 3:
+        res = s
+    else:
+        last3 = s[-3:]
+        rest = s[:-3]
+        groups = []
+        while len(rest) > 2:
+            groups.insert(0, rest[-2:])
+            rest = rest[:-2]
+        if rest:
+            groups.insert(0, rest)
+        res = ",".join(groups) + "," + last3
+    if decimals > 0:
+        res = f"{res}.{dec_str}"
+    return f"-{res}" if is_neg else res
 
 
 # Noise markers to deprioritize/filter from financial data answers
@@ -53,6 +78,11 @@ _NOISE_MARKERS = [
 
 def classify_financial_intent(query: str) -> FinancialIntent:
     q = query.lower()
+    # Summarization requests must be identified before entity keywords
+    if any(k in q for k in ["summarize", "summary", "overview", "what is this document", "tell me about this business", "key findings", "financial data in this document", "financial details", "financial statements", "highlights", "executive summary"]):
+        return FinancialIntent.SUMMARY
+    if any(k in q for k in ["cash flow", "cash from operating", "operating cash", "cfo", "cash balance", "closing cash", "free cash flow", "cash generated", "net cash"]):
+        return FinancialIntent.CASH_FLOW
     if any(k in q for k in ["loan", "borrow", "borrowing", "debt", "credit", "emi", "take loan", "take olan", "should we take", "can we take"]):
         return FinancialIntent.LOAN_DECISION
     if any(k in q for k in ["stock", "stocks", "invest", "investment", "investing", "surplus cash", "shares", "portfolio", "market investment", "which stock", "valuation", "market cap", "p/e"]):
@@ -63,8 +93,6 @@ def classify_financial_intent(query: str) -> FinancialIntent:
         return FinancialIntent.INCOME_STATEMENT
     if any(k in q for k in ["ratio", "ratios", "margin", "margins", "profit margin", "opm", "npm", "roe", "roce", "roa", "current ratio", "quick ratio", "debt to equity", "leverage ratio"]):
         return FinancialIntent.RATIOS
-    if any(k in q for k in ["summarize", "summary", "overview", "what is this document", "tell me about this business", "key findings", "financial data in this document", "financial details", "financial statements", "highlights"]):
-        return FinancialIntent.SUMMARY
     if any(k in q for k in ["revenue", "sales", "invoiced", "top customers", "gross margin", "collections", "turnover", "topline"]):
         return FinancialIntent.REVENUE
     if any(k in q for k in ["expense", "expenses", "opex", "cogs", "vendor", "payroll", "payable", "supplier", "burn", "costs", "cost of goods"]):
@@ -143,13 +171,16 @@ class AgenticRAGEngine:
                 "Cash and cash equivalents closing cash operating cash",
                 "Equity Share Capital Reserves net worth",
                 "Annual P&L operating expenses net profit",
+                "Sales Revenue Net profit Annual P&L",
             ]:
                 hits = store.similarity_search(sub_query, top_k=4, metadata_filter=base_filter)
                 add_chunks(hits)
 
         elif intent == FinancialIntent.STOCK_INVESTMENT:
             for sub_query in [
-                "Data Sheet Market Capitalization Current Price EPS",
+                "Market Capitalization Current Price",
+                "Price to earning",
+                "Data Sheet Market Capitalization Current Price",
                 "Return on Equity dividend payout price to earning",
                 "Cash from Operating Activity Cash Flow closing cash",
                 "Balance Sheet cash investments reserves equity",
@@ -159,10 +190,21 @@ class AgenticRAGEngine:
                 hits = store.similarity_search(sub_query, top_k=4, metadata_filter=base_filter)
                 add_chunks(hits)
 
+        elif intent == FinancialIntent.CASH_FLOW:
+            for sub_query in [
+                "Cash from Operating Activity Operating Profit Working Capital Changes Cash Flow",
+                "Cash Flow from Operations Closing Cash Balance Cash and Cash Equivalents",
+                "Net Cash Flow Cash and Bank Balances Data Sheet",
+                "Operating Activities Investing Activities Financing Activities",
+                "Cash and Bank Balances closing cash",
+            ]:
+                hits = store.similarity_search(sub_query, top_k=4, metadata_filter=base_filter)
+                add_chunks(hits)
+
         elif intent == FinancialIntent.REVENUE:
             for sub_query in [
                 "Sales Revenue turnover gross profit income statement",
-                "Row 17: Sales Data Sheet 1055780",
+                "Sales Revenue turnover Data Sheet",
                 "Quarters Sales Revenue Data Sheet",
                 "Annual P&L Revenue Gross Profit",
                 "Sales Invoices customer invoiced",
@@ -173,7 +215,7 @@ class AgenticRAGEngine:
         elif intent == FinancialIntent.EXPENSES:
             for sub_query in [
                 "Expenses raw material employee cost depreciation interest income statement",
-                "Row 18: Raw Material Cost Data Sheet",
+                "Raw Material Cost Expenses Operating Cost Data Sheet",
                 "Annual P&L Operating Expenses COGS Expense Ledger",
                 "Payroll employee salaries expense",
             ]:
@@ -193,7 +235,7 @@ class AgenticRAGEngine:
         elif intent == FinancialIntent.BALANCE_SHEET:
             for sub_query in [
                 "Balance Sheet Total Assets Liabilities Equity Share Capital Borrowings Reserves Data Sheet",
-                "Row 51: Total Assets Row 40: Total Liabilities Balance Sheet",
+                "Total Assets Total Liabilities Balance Sheet Data Sheet",
                 "Cash and Bank Balances Current Assets Non-Current Assets Fixed Assets CWIP",
                 "Borrowings Other Liabilities Trade Payables Debtors Inventory",
             ]:
@@ -318,41 +360,7 @@ class AgenticRAGEngine:
             }
             m["monthly_opex_run_rate"] = 1750000
 
-        # 2. Reliance Industries extraction
-        elif is_reliance:
-            m["market_cap"] = 1867489.86  # In Crore
-            m["share_price"] = 1380.0
-            m["pe_ratio"] = 21.38
-            m["cash_balance"] = 145977.0  # FY26 Cash & Bank in Cr
-            m["total_debt"] = 402962.0   # FY26 Borrowings in Cr
-            m["total_assets"] = 2177546.0 # FY26 Total Assets in Cr
-            m["total_equity"] = 904030.0  # FY26 Equity Capital + Reserves in Cr
-            m["operating_cash_flow"] = 192113.0 # FY26 Cash from Operating Activity in Cr
-            m["pnl"] = {
-                "FY24": {"revenue": 899041, "operating_profit": 162498, "opm": "18.1%", "net_profit": 69621, "eps": 51.4},
-                "FY25": {"revenue": 962820, "operating_profit": 165598, "opm": "17.2%", "net_profit": 69648, "eps": 51.5},
-                "FY26": {"revenue": 1055780, "operating_profit": 179065, "opm": "17.0%", "net_profit": 80775, "eps": 59.7},
-            }
-            m["quarters"] = {
-                "Q1_FY26": {"sales": 243632, "op_profit": 42905, "net_profit": 26994},
-                "Q2_FY26": {"sales": 254623, "op_profit": 45885, "net_profit": 18165},
-                "Q3_FY26": {"sales": 264905, "op_profit": 46018, "net_profit": 18645},
-            }
-
-        # 3. State Bank of India extraction
-        elif is_sbi:
-            m["company"] = "State Bank of India (SBI)"
-            m["total_assets"] = 8321175.98  # In Cr
-            m["cash_balance"] = 268681.74   # In Cr
-            m["total_debt"] = 7288674.34    # Total Liabilities in Cr
-            m["operating_cash_flow"] = 168234.0
-            m["pnl"] = {
-                "FY22": {"revenue": 381660.10, "operating_profit": 75292.37, "net_profit": 35373.88},
-                "FY23": {"revenue": 444310.22, "operating_profit": 83712.97, "net_profit": 56558.11},
-                "FY24": {"revenue": 514932.59, "operating_profit": 93766.70, "net_profit": 83298.78},
-            }
-
-        # 4. Comprehensive generic extraction from tabular text
+        # 2. Comprehensive universal extraction from tabular text
         else:
             # 4a. Identify company name from text if still default
             if company == "FinSight Business":
@@ -384,6 +392,9 @@ class AgenticRAGEngine:
                 for token in tokens[1:]:
                     token = token.strip()
                     if not token or token in ("-", "--", "NA", "N/A", "nil"):
+                        continue
+                    token = token.split("(formula:")[0].strip()
+                    if not token:
                         continue
                     is_paren = token.startswith("(") and token.endswith(")")
                     clean = re.sub(r"[^\d.-]", "", token)
@@ -458,14 +469,76 @@ class AgenticRAGEngine:
                         m["cash_balance"] = nums[-1]
 
                 # Equity / Net Worth
-                elif any(k in line_lower for k in ("equity capital", "share capital", "net worth", "shareholders funds")):
+                elif any(k in line_lower for k in ("equity capital", "equity share capital", "share capital", "net worth", "shareholders funds")):
                     nums = _extract_row_numbers(line)
                     if nums:
                         m["equity_sample"] = nums
+                        m["equity_share_capital"] = nums[-1]
+
+                # Reserves
+                elif any(k in line_lower for k in ("reserves", "retained earnings", "other equity")):
+                    nums = _extract_row_numbers(line)
+                    if nums:
+                        m["reserves_sample"] = nums
+                        m["reserves"] = nums[-1]
+
+                # Operating Cash Flow
+                elif any(k in line_lower for k in ("cash from operating activity", "operating cash flow", "cash flow from operations")):
+                    nums = _extract_row_numbers(line)
+                    if nums:
+                        m["operating_cash_flow_sample"] = nums
+                        m["operating_cash_flow"] = nums[-1]
+
+                # Market Capitalization
+                elif any(k in line_lower for k in ("market capitalization", "market cap", "mcap")):
+                    nums = _extract_row_numbers(line)
+                    if nums:
+                        m["market_cap"] = nums[0]
+
+                # Current Price / Share Price
+                elif any(k in line_lower for k in ("current price", "share price", "stock price", "cmp")):
+                    nums = _extract_row_numbers(line)
+                    if nums:
+                        m["share_price"] = nums[0]
+
+                # Price to Earning / P/E Ratio
+                elif any(k in line_lower for k in ("price to earning", "stock p/e", "p/e ratio")):
+                    nums = _extract_row_numbers(line)
+                    if nums:
+                        m["pe_ratio"] = nums[-1]
+
+                # Book Value
+                elif any(k in line_lower for k in ("book value", "bvps")):
+                    nums = _extract_row_numbers(line)
+                    if nums:
+                        m["book_value"] = nums[-1]
 
             if pnl_extracted:
                 m["pnl"] = pnl_extracted
                 m["periods"] = periods
+
+            # Fallback regex extraction from full text if not found in table scan
+            if m.get("market_cap") is None:
+                m_cap = re.search(r"Market Capitalization\s*\|\s*([\d,.]+)", all_text, re.IGNORECASE)
+                if m_cap:
+                    try:
+                        m["market_cap"] = float(re.sub(r"[^\d.]", "", m_cap.group(1)))
+                    except ValueError:
+                        pass
+            if m.get("share_price") is None:
+                m_pr = re.search(r"Current Price\s*\|\s*([\d,.]+)", all_text, re.IGNORECASE)
+                if m_pr:
+                    try:
+                        m["share_price"] = float(re.sub(r"[^\d.]", "", m_pr.group(1)))
+                    except ValueError:
+                        pass
+            if m.get("pe_ratio") is None:
+                m_pe = re.search(r"Price to [Ee]arning\s*\|\s*([\d,.]+)", all_text, re.IGNORECASE)
+                if m_pe:
+                    try:
+                        m["pe_ratio"] = float(re.sub(r"[^\d.]", "", m_pe.group(1)))
+                    except ValueError:
+                        pass
 
         return m
 
@@ -478,207 +551,8 @@ class AgenticRAGEngine:
         is_sbi = "sbi" in company.lower() or "state bank" in company.lower() or "sbi" in query.lower() or "bank" in query.lower() or "SBI" in context_text or "STATE BANK" in context_text.upper()
         is_aarohan = ("aarohan" in company.lower() or "LN-001" in context_text) and not is_reliance and not is_sbi
 
-        # -------------------------------------------------------------
-        # Case A: RELIANCE INDUSTRIES LTD
-        # -------------------------------------------------------------
-        if is_reliance:
-            if intent == FinancialIntent.BALANCE_SHEET:
-                return (
-                    "Balance Sheet & Capital Structure — RELIANCE INDUSTRIES LTD (As at 31 March 2026):\n\n"
-                    "1. Assets & Capital Employed:\n"
-                    "- Balance Sheet Size (Total Assets): ₹21,77,546 Cr (~₹21.78 Lakh Crore)\n"
-                    "- Fixed Assets (Net Block): ₹11,24,795 Cr\n"
-                    "- Capital Work-in-Progress (CWIP): ₹1,85,690 Cr\n"
-                    "- Cash & Bank Balances: ₹1,45,977 Cr (~₹1.46 Lakh Crore in liquid reserves)\n"
-                    "- Current Investments: ₹1,03,425 Cr\n"
-                    "- Trade Receivables (Debtors): ₹58,491 Cr\n"
-                    "- Inventories: ₹1,66,941 Cr\n\n"
-                    "2. Net Worth, Borrowings & Liabilities:\n"
-                    "- Total Shareholders' Equity (Net Worth): ₹9,04,030 Cr (Share Capital ₹13,532 Cr + Reserves ₹8,90,498 Cr)\n"
-                    "- Total Borrowings (Debt): ₹4,02,962 Cr (~₹4.03 Lakh Crore across long-term & working capital loans)\n"
-                    "- Other Liabilities: ₹8,70,554 Cr\n"
-                    "- Total Liabilities & Equity: ₹21,77,546 Cr\n\n"
-                    "3. Capital & Solvency Ratios:\n"
-                    "- Debt-to-Equity Ratio: ~0.45x (Conservative leverage for a capital-intensive conglomerate)\n"
-                    "- Total Debt / Assets: ~18.5%\n"
-                    "- Net Working Capital: Positive with strong liquidity buffer."
-                )
+        is_aarohan = ("LN-001" in context_text or "aarohan" in company.lower()) and intent in (FinancialIntent.LOAN_DECISION, FinancialIntent.STOCK_INVESTMENT)
 
-            if intent == FinancialIntent.INCOME_STATEMENT:
-                return (
-                    "Annual Income Statement & Profitability — RELIANCE INDUSTRIES LTD:\n\n"
-                    "1. Multi-Year Sales & Revenue Trajectory:\n"
-                    "- FY 2023-24: Sales ₹8,99,041 Cr | Operating Profit ₹1,62,498 Cr (OPM 18.1%) | Net Profit ₹69,621 Cr\n"
-                    "- FY 2024-25: Sales ₹9,62,820 Cr | Operating Profit ₹1,65,598 Cr (OPM 17.2%) | Net Profit ₹69,648 Cr\n"
-                    "- FY 2025-26: Sales ₹10,55,780 Cr | Operating Profit ₹1,79,065 Cr (OPM 17.0%) | Net Profit ₹80,775 Cr\n"
-                    "- 10-Year Growth: Sales expanded from ₹3,03,954 Cr (FY17) to ₹10,55,780 Cr in FY26 (~14.8% CAGR).\n\n"
-                    "2. Cost Structure & Deductions (FY26):\n"
-                    "- Raw Material Cost: ₹6,98,930 Cr | Employee Expenses: ₹24,872 Cr\n"
-                    "- Depreciation: ₹57,688 Cr | Interest Expense: ₹27,061 Cr | Tax: ₹26,732 Cr\n\n"
-                    "3. Bottom-Line Net Earnings (PAT):\n"
-                    "- Profit After Tax (PAT): ₹80,775 Cr (Consolidated)\n"
-                    "- Earnings Per Share (EPS): ₹59.70 per share."
-                )
-
-            if intent == FinancialIntent.RATIOS:
-                return (
-                    "Core Financial Ratios & Performance Metrics — RELIANCE INDUSTRIES LTD:\n\n"
-                    "1. Profitability Ratios:\n"
-                    "- Operating Profit Margin (OPM): 17.0% (FY26) (Stable between 17%–18.1% over 3 years)\n"
-                    "- Net Profit Margin (PAT Margin): 7.65% (₹80,775 Cr on ₹10,55,780 Cr revenue)\n"
-                    "- Return on Equity (ROE): 8.9% – 9.3%\n"
-                    "- Return on Capital Employed (ROCE): 10.4% – 11.2%\n\n"
-                    "2. Leverage & Solvency Ratios:\n"
-                    "- Debt to Equity: 0.45x (Total Borrowings ₹4,02,962 Cr / Equity ₹9,04,030 Cr)\n"
-                    "- Total Debt to Assets: 18.5% (Borrowings / Total Assets ₹21,77,546 Cr)\n"
-                    "- Interest Coverage Ratio: ~6.6x (Operating Profit ₹1,79,065 Cr / Interest ₹27,061 Cr)\n\n"
-                    "3. Liquidity & Valuation Ratios:\n"
-                    "- Cash Reserves: ₹1,45,977 Cr (~₹1.46 Lakh Crore)\n"
-                    "- Price-to-Earnings (P/E) Ratio: 21.38x (in line with 10-year historical average)\n"
-                    "- Price-to-Book (P/B): ~2.07x | Market Cap: ₹18,67,490 Cr | Current Share Price: ₹1,380."
-                )
-
-            if intent == FinancialIntent.SUMMARY:
-                return (
-                    "Executive Financial Summary — RELIANCE INDUSTRIES LTD:\n\n"
-                    "1. Corporate Overview & Scale:\n"
-                    "- Organization: Reliance Industries Limited (Energy, Petrochemicals, Jio Telecom, Retail, Digital Services)\n"
-                    "- Market Capitalization: ₹18,67,490 Cr (~₹18.67 Lakh Crore) | Current Share Price: ₹1,380\n"
-                    "- Valuation & Multiples: P/E Ratio ~21.4x (10-year historical average 21.38x)\n"
-                    "- Reporting Horizon: FY 2016-17 to FY 2025-26 (Multi-Year Trajectory & Latest Quarters)\n\n"
-                    "2. Revenue & Profitability Trajectory:\n"
-                    "- FY 2023-24: Sales ₹8,99,041 Cr | Operating Profit ₹1,62,498 Cr (OPM 18.1%) | Net Profit ₹69,621 Cr\n"
-                    "- FY 2024-25: Sales ₹9,62,820 Cr | Operating Profit ₹1,65,598 Cr (OPM 17.2%) | Net Profit ₹69,648 Cr\n"
-                    "- FY 2025-26: Sales ₹10,55,780 Cr | Operating Profit ₹1,79,065 Cr (OPM 17.0%) | Net Profit ₹80,775 Cr\n"
-                    "- Long-Term Growth: Revenue expanded from ₹3,03,954 Cr (FY17) to ₹10,55,780 Cr in FY26 (~14.8% CAGR), reflecting strong topline execution.\n\n"
-                    "3. Balance Sheet & Capital Structure (As at 31 March 2026):\n"
-                    "- Balance Sheet Size (Total Assets): ₹21,77,546 Cr (~₹21.78 Lakh Crore)\n"
-                    "- Net Worth / Shareholders' Equity: ₹9,04,030 Cr (Share Capital ₹13,532 Cr + Reserves ₹8,90,498 Cr)\n"
-                    "- Total Borrowings: ₹4,02,962 Cr (~₹4.03 Lakh Crore across long-term & working capital debt)\n"
-                    "- Cash & Bank Balances: ₹1,45,977 Cr (~₹1.46 Lakh Crore in liquid reserves)\n"
-                    "- Trade Working Capital: Debtors ₹58,491 Cr | Inventory ₹1,66,941 Cr | Net Block ₹11,24,795 Cr\n\n"
-                    "4. Cash Flow & Liquidity Operations:\n"
-                    "- Annual Cash from Operating Activities: ₹1,92,113 Cr (~₹1.92 Lakh Crore)\n"
-                    "- Operating cash flow comfortably covers capital investments (Capex/CWIP) and debt service commitments.\n\n"
-                    "5. Strategic CFO Assessment:\n"
-                    "Reliance Industries exhibits exceptional institutional resilience, maintaining a conservative borrowings-to-equity ratio of ~0.45x, "
-                    "massive cash flow from operations (>₹1.92 Lakh Cr), and liquid cash reserves of ₹1.46 Lakh Cr. It is well-positioned for ongoing green energy and 5G capital expansion."
-                )
-
-            if intent == FinancialIntent.LOAN_DECISION:
-                return (
-                    "Financial Evaluation — Debt Capacity & Solvency Advisory (RELIANCE INDUSTRIES LTD):\n\n"
-                    "1. Current Borrowing & Debt Structure (FY26):\n"
-                    "- Total Outstanding Borrowings: ₹4,02,962 Cr (~₹4.03 Lakh Crore)\n"
-                    "- Consolidated Annual Net Profit (FY26): ₹80,775 Cr (Profit After Tax)\n"
-                    "- Total Liabilities (including other liabilities): ₹12,73,516 Cr\n"
-                    "- Total Shareholders' Equity (Net Worth): ₹9,04,030 Cr\n"
-                    "- Debt-to-Equity Ratio (Borrowings / Equity): ~0.45x (very conservative leverage for a capital-intensive conglomerate)\n"
-                    "- Total Debt / Assets: ~18.5% (Borrowings / Total Assets ₹21,77,546 Cr)\n\n"
-                    "2. Cash Flow & Debt Servicing Headroom:\n"
-                    "- Cash & Bank Reserves: ₹1,45,977 Cr (~₹1.46 Lakh Crore in liquid cash buffer)\n"
-                    "- Cash Flow from Operations: ₹1,92,113 Cr annually\n"
-                    "- Annual Interest Expense: ₹27,061 Cr\n"
-                    "- Interest Coverage Ratio: ~6.6x (Operating Profit ₹1,79,065 Cr / Interest ₹27,061 Cr), demonstrating strong solvency buffer.\n\n"
-                    "3. Recommendation & Decision:\n"
-                    "**DECISION: PRIME AAA BORROWING CAPACITY — DEBT EXPANSION FULLY SUPPORTED FOR STRATEGIC CAPEX.**\n"
-                    "Reliance Industries possesses significant debt capacity and pristine creditworthiness. Additional borrowing capacity exists for accretive, "
-                    "return-generating infrastructure and green energy initiatives, backed by massive operating cash flows (₹1.92 Lakh Cr/year) and substantial liquid cash buffers (₹1.46 Lakh Cr)."
-                )
-
-            if intent == FinancialIntent.STOCK_INVESTMENT:
-                return (
-                    "Financial Evaluation — Market Valuation & Stock Investment Advisory (RELIANCE INDUSTRIES LTD):\n\n"
-                    "1. Valuation & Equity Metrics:\n"
-                    "- Market Capitalization: ₹18,67,490 Cr (~₹18.67 Lakh Crore)\n"
-                    "- Current Market Price: ₹1,380 per share\n"
-                    "- Price-to-Earnings (P/E) Multiple: ~21.4x (in line with 10-year historical average of 21.38x)\n"
-                    "- Earnings Per Share (EPS): ₹59.70+ in FY26 (up from ₹49.29 in FY23 and ₹22.78 in FY17)\n"
-                    "- Return on Equity (ROE): Stable at 8.9% – 9.3%\n\n"
-                    "2. Capital Allocation & Cash Flow Generation:\n"
-                    "- Cash Flow from Operating Activities: ₹1,92,113 Cr (~₹1.92 Lakh Crore)\n"
-                    "- Cash Reserves: ₹1,45,977 Cr\n"
-                    "- Dividend Payout: ~9% to 10% of annual net profits (₹8,119 Cr in FY26)\n\n"
-                    "3. Recommendation & Decision:\n"
-                    "**DECISION: COMPELLING LONG-TERM LARGE-CAP BLUE-CHIP INVESTMENT POSITION.**\n"
-                    "Valuation at ~21.4x P/E is fair and reasonable compared to historical bands, supported by market dominance across telecom (Jio), retail, "
-                    "and petrochemicals. Strong annual operating cash flow (₹1.92 Lakh Cr) and robust cash reserves make it an anchor large-cap investment."
-                )
-
-            if intent == FinancialIntent.REVENUE:
-                return (
-                    "Revenue & Sales Performance Analysis — RELIANCE INDUSTRIES LTD:\n\n"
-                    "1. Multi-Year Sales Trajectory:\n"
-                    "- FY 2023-24: Sales ₹8,99,041 Cr (YoY +2.6%)\n"
-                    "- FY 2024-25: Sales ₹9,62,820 Cr (YoY +7.1%)\n"
-                    "- FY 2025-26: Sales ₹10,55,780 Cr (YoY +9.7%)\n"
-                    "- 10-Year Growth: Expanded from ₹3,03,954 Cr in FY17 to ₹10,55,780 Cr in FY26 (~14.8% CAGR).\n\n"
-                    "2. Quarterly Sales Breakdown:\n"
-                    "- Q1 FY26: ₹2,43,632 Cr | Q2 FY26: ₹2,54,623 Cr | Q3 FY26: ₹2,64,905 Cr\n\n"
-                    "3. Operating Profit Margins:\n"
-                    "- Operating Profit expanded to ₹1,79,065 Cr in FY26 with steady OPM of ~17.0%."
-                )
-
-            if intent == FinancialIntent.EXPENSES:
-                return (
-                    "Cost Structure & Operating Expenses — RELIANCE INDUSTRIES LTD:\n\n"
-                    "1. Total Operating Expenses (FY26): ₹8,76,715 Cr\n"
-                    "- Raw Material Cost: ₹6,98,930 Cr (~79.7% of total costs)\n"
-                    "- Employee Expenses: ₹24,872 Cr\n"
-                    "- Power & Fuel Expenses: ₹25,062 Cr\n"
-                    "- Other Manufacturing & Admin Expenses: ~₹87,027 Cr\n\n"
-                    "2. Financing & Non-Cash Charges:\n"
-                    "- Depreciation & Amortization: ₹57,688 Cr\n"
-                    "- Finance / Interest Costs: ₹27,061 Cr\n\n"
-                    "3. Operating Profitability: Despite high raw material inputs, operating profit stood at ₹1,79,065 Cr (17.0% margin)."
-                )
-
-            if intent == FinancialIntent.RISK:
-                return (
-                    "Solvency, Liquidity & Financial Risk Review — RELIANCE INDUSTRIES LTD:\n\n"
-                    "1. Leverage & Solvency Headroom:\n"
-                    "- Borrowings: ₹4,02,962 Cr vs Equity: ₹9,04,030 Cr (Debt/Equity 0.45x)\n"
-                    "- Interest Coverage: ~6.6x — Extremely low default probability.\n\n"
-                    "2. Working Capital & Cash Buffer:\n"
-                    "- Cash & Bank Reserves: ₹1,45,977 Cr\n"
-                    "- Working Capital: Operating cycle is optimized with fast debtor collections (Debtor Days ~20 days; Trade Receivables ₹58,491 Cr).\n\n"
-                    "3. Risk Level: LOW / INVESTMENT-GRADE (AAA)."
-                )
-
-            # Default / General Financial Inquiries for Reliance
-            return (
-                "Cash Flow & Financial Summary — RELIANCE INDUSTRIES LTD:\n\n"
-                "1. Cash Flow & Liquidity Operations (FY26):\n"
-                "- Cash from Operating Activities: ₹1,92,113 Cr (~₹1.92 Lakh Crore)\n"
-                "- Closing Cash & Bank Reserves: ₹1,45,977 Cr (~₹1.46 Lakh Crore)\n\n"
-                "2. Capital Position & Solvency:\n"
-                "- Total Borrowings: ₹4,02,962 Cr | Total Assets: ₹21,77,546 Cr\n"
-                "- Annual Net Profit: ₹80,775 Cr | Revenue: ₹10,55,780 Cr"
-            )
-
-        # -------------------------------------------------------------
-        # Case B: STATE BANK OF INDIA (SBI)
-        # -------------------------------------------------------------
-        if is_sbi:
-            return (
-                "Financial Statement Evaluation — STATE BANK OF INDIA (SBI):\n\n"
-                "1. Revenue & Profitability (FY24 Consolidated):\n"
-                "- Total Revenue / Interest Earned: ₹5,14,932.59 Cr (~₹5.15 Lakh Crore)\n"
-                "- Operating Profit: ₹93,766.70 Cr (~₹93,767 Cr)\n"
-                "- Consolidated Net Profit (PAT): ₹83,298.78 Cr (~₹83,299 Cr, YoY expansion of +47.3%)\n"
-                "- Multi-Year Trend: Revenue expanded from ₹3,81,660.10 Cr in FY22 to ₹4,44,310.22 Cr in FY23 and ₹5,14,932.59 Cr in FY24.\n\n"
-                "2. Balance Sheet Scale & Asset Quality:\n"
-                "- Total Balance Sheet Assets: ₹83,21,175.98 Cr (~₹83.21 Lakh Crore)\n"
-                "- Total Deposits: ₹52,43,623.51 Cr\n"
-                "- Total Advances (Loans): ₹40,11,811.23 Cr\n"
-                "- Cash & Bank Reserves: ₹2,68,681.74 Cr (~₹2.69 Lakh Crore in liquid reserves)\n\n"
-                "3. Strategic Assessment:\n"
-                "State Bank of India is India's largest commercial bank, delivering record FY24 consolidated net profit of ₹83,298.78 Cr on total revenues of ₹5,14,932.59 Cr."
-            )
-
-        # -------------------------------------------------------------
-        # Case C: AAROHAN CONSUMER PRODUCTS PRIVATE LIMITED
-        # -------------------------------------------------------------
         if is_aarohan:
             if intent == FinancialIntent.LOAN_DECISION:
                 return (
@@ -714,84 +588,7 @@ class AgenticRAGEngine:
                     "**DECISION: DO NOT INVEST IN EQUITY STOCKS WITH YOUR CURRENT OPERATING FUNDS.**\n\n"
                     "Recommended Financial Action Plan:\n"
                     "- Short-Term Yield: Place idle operational funds exclusively in Overnight Liquid Mutual Funds or Bank Auto-Sweep/Fixed Deposits earning 6.5%–7.0% p.a. with instant T+0/T+1 liquidity.\n"
-                    "- Equity Stock Allocation: Defer equity investments (e.g. Nifty 50 large-cap blue chips like Reliance Industries, TCS, Infosys, HDFC Bank) until your cash balance surpasses ₹60 Lakh (providing a comfortable 4+ month reserve) and net operating cash flow turns positive."
-                )
-
-            if intent == FinancialIntent.BALANCE_SHEET:
-                return (
-                    "Balance Sheet & Capital Structure — RELIANCE INDUSTRIES LTD (As at 31 March 2026):\n\n"
-                    "1. Assets & Capital Employed:\n"
-                    "- Balance Sheet Size (Total Assets): ₹21,77,546 Cr (~₹21.78 Lakh Crore)\n"
-                    "- Fixed Assets (Net Block): ₹11,24,795 Cr\n"
-                    "- Capital Work-in-Progress (CWIP): ₹1,85,690 Cr\n"
-                    "- Cash & Bank Balances: ₹1,45,977 Cr (~₹1.46 Lakh Crore in liquid reserves)\n"
-                    "- Current Investments: ₹1,03,425 Cr\n"
-                    "- Trade Receivables (Debtors): ₹58,491 Cr\n"
-                    "- Inventories: ₹1,66,941 Cr\n\n"
-                    "2. Net Worth, Borrowings & Liabilities:\n"
-                    "- Total Shareholders' Equity (Net Worth): ₹9,04,030 Cr (Share Capital ₹13,532 Cr + Reserves ₹8,90,498 Cr)\n"
-                    "- Total Borrowings (Debt): ₹4,02,962 Cr (~₹4.03 Lakh Crore across long-term & working capital loans)\n"
-                    "- Other Liabilities: ₹8,70,554 Cr\n"
-                    "- Total Liabilities & Equity: ₹21,77,546 Cr\n\n"
-                    "3. Capital & Solvency Ratios:\n"
-                    "- Debt-to-Equity Ratio: ~0.45x (Conservative leverage for a capital-intensive conglomerate)\n"
-                    "- Total Debt / Assets: ~18.5%\n"
-                    "- Net Working Capital: Positive with strong liquidity buffer."
-                )
-
-            if intent == FinancialIntent.INCOME_STATEMENT:
-                return (
-                    "Annual Income Statement & Profitability — RELIANCE INDUSTRIES LTD:\n\n"
-                    "1. Multi-Year Sales & Revenue Trajectory:\n"
-                    "- FY 2023-24: Sales ₹8,99,041 Cr | Operating Profit ₹1,62,498 Cr (OPM 18.1%) | Net Profit ₹69,621 Cr\n"
-                    "- FY 2024-25: Sales ₹9,62,820 Cr | Operating Profit ₹1,65,598 Cr (OPM 17.2%) | Net Profit ₹69,648 Cr\n"
-                    "- FY 2025-26: Sales ₹10,55,780 Cr | Operating Profit ₹1,79,065 Cr (OPM 17.0%) | Net Profit ₹80,775 Cr\n"
-                    "- 10-Year Growth: Sales expanded from ₹3,03,954 Cr (FY17) to ₹10,55,780 Cr in FY26 (~14.8% CAGR).\n\n"
-                    "2. Cost Structure & Deductions (FY26):\n"
-                    "- Raw Material Cost: ₹6,98,930 Cr | Employee Expenses: ₹24,872 Cr\n"
-                    "- Depreciation: ₹57,688 Cr | Interest Expense: ₹27,061 Cr | Tax: ₹26,732 Cr\n\n"
-                    "3. Bottom-Line Net Earnings (PAT):\n"
-                    "- Profit After Tax (PAT): ₹80,775 Cr (Consolidated)\n"
-                    "- Earnings Per Share (EPS): ₹59.70 per share."
-                )
-
-            if intent == FinancialIntent.RATIOS:
-                return (
-                    "Core Financial Ratios & Performance Metrics — RELIANCE INDUSTRIES LTD:\n\n"
-                    "1. Profitability Ratios:\n"
-                    "- Operating Profit Margin (OPM): 17.0% (FY26) (Stable between 17%–18.1% over 3 years)\n"
-                    "- Net Profit Margin (PAT Margin): 7.65% (₹80,775 Cr on ₹10,55,780 Cr revenue)\n"
-                    "- Return on Equity (ROE): 8.9% – 9.3%\n"
-                    "- Return on Capital Employed (ROCE): 10.4% – 11.2%\n\n"
-                    "2. Leverage & Solvency Ratios:\n"
-                    "- Debt to Equity: 0.45x (Total Borrowings ₹4,02,962 Cr / Equity ₹9,04,030 Cr)\n"
-                    "- Total Debt to Assets: 18.5% (Borrowings / Total Assets ₹21,77,546 Cr)\n"
-                    "- Interest Coverage Ratio: ~6.6x (Operating Profit ₹1,79,065 Cr / Interest ₹27,061 Cr)\n\n"
-                    "3. Liquidity & Valuation Ratios:\n"
-                    "- Cash Reserves: ₹1,45,977 Cr (~₹1.46 Lakh Crore)\n"
-                    "- Price-to-Earnings (P/E) Ratio: 21.38x (in line with 10-year historical average)\n"
-                    "- Price-to-Book (P/B): ~2.07x | Market Cap: ₹18,67,490 Cr | Current Share Price: ₹1,380."
-                )
-
-            if intent == FinancialIntent.SUMMARY:
-                return (
-                    "Executive Financial Summary — Aarohan Consumer Products Private Limited:\n\n"
-                    "1. Company Overview:\n"
-                    "- Industry: Consumer products manufacturing, wholesale, retail and e-commerce\n"
-                    "- Reporting Period: 1 April 2023 – 31 March 2026 (FY 2023-24 to FY 2025-26)\n"
-                    "- Currency: Indian Rupees (₹)\n\n"
-                    "2. Revenue & Profitability Trajectory:\n"
-                    "- FY 2023-24: Invoiced Revenue ₹2,44,63,535 | Gross Profit ₹91,23,670 (37.3%) | Net Loss -₹73,85,587\n"
-                    "- FY 2024-25: Invoiced Revenue ₹3,57,90,797 | Gross Profit ₹1,33,75,307 (37.4%) | Net Loss -₹77,63,984\n"
-                    "- FY 2025-26: Invoiced Revenue ₹4,17,82,093 | Gross Profit ₹1,55,61,133 (37.2%) | Net Loss -₹62,14,602\n"
-                    "- Multi-Year Trend: Revenue expanded by +70.8% over 3 years, while gross margin stabilized at ~37.2%.\n\n"
-                    "3. Balance Sheet & Debt Position (As at 31 March 2026):\n"
-                    "- Cash & Equivalents: ₹23,50,000\n"
-                    "- Trade Receivables: ₹6,61,953 | Inventory: ₹15,37,785 | Fixed Assets: ₹38,64,000\n"
-                    "- Outstanding Loans: ₹28,10,000 across 3 active facilities (Monthly EMI ₹1,26,000)\n\n"
-                    "4. Strategic CFO Assessment:\n"
-                    "Top-line growth is strong (+70.8%), but net profit is impacted by heavy operating expenses (~₹2.10 Cr in FY26). "
-                    "Priority should be placed on operating expense rationalization and working capital efficiency."
+                    "- Equity Stock Allocation: Defer equity investments until your cash balance surpasses ₹60 Lakh (providing a comfortable 4+ month reserve) and net operating cash flow turns positive."
                 )
 
         # -------------------------------------------------------------
@@ -815,6 +612,52 @@ class AgenticRAGEngine:
         is_bs_q = any(k in query.lower() for k in ("balance sheet", "assets", "debt", "borrowing", "position", "equity", "liability", "worth"))
 
         lines = [f"Executive Financial Evaluation — {company_display}:\n"]
+
+        # Case C0: User asks about stock investment / market valuation
+        is_stock_val_q = intent == FinancialIntent.STOCK_INVESTMENT or any(
+            k in query.lower() for k in ("stock", "stocks", "valuation", "invest", "share price", "market cap", "p/e", "pe ratio")
+        )
+        if is_stock_val_q:
+            # Fallback scan context_text directly if not in m
+            if m.get("market_cap") is None:
+                m_cap = re.search(r"Market Capitalization\s*\|\s*([\d,.]+)", context_text, re.IGNORECASE)
+                if m_cap:
+                    try:
+                        m["market_cap"] = float(re.sub(r"[^\d.]", "", m_cap.group(1)))
+                    except ValueError:
+                        pass
+            if m.get("share_price") is None:
+                m_pr = re.search(r"Current Price\s*\|\s*([\d,.]+)", context_text, re.IGNORECASE)
+                if m_pr:
+                    try:
+                        m["share_price"] = float(re.sub(r"[^\d.]", "", m_pr.group(1)))
+                    except ValueError:
+                        pass
+            if m.get("pe_ratio") is None:
+                m_pe = re.search(r"Price to [Ee]arning\s*\|\s*([\d,.]+)", context_text, re.IGNORECASE)
+                if m_pe:
+                    try:
+                        m["pe_ratio"] = float(re.sub(r"[^\d.]", "", m_pe.group(1)))
+                    except ValueError:
+                        pass
+
+            if m.get("market_cap") is not None or m.get("share_price") is not None or m.get("pe_ratio") is not None:
+                lines.append("Valuation & Market Investment Metrics:")
+                if m.get("market_cap") is not None:
+                    lines.append(f"- Market Capitalization: ₹{_format_inr(m['market_cap'])} Cr")
+                if m.get("share_price") is not None:
+                    lines.append(f"- Current Share Price: ₹{_format_inr(m['share_price'])}")
+                if m.get("pe_ratio") is not None:
+                    lines.append(f"- Stock P/E Ratio: {m['pe_ratio']:.1f}")
+                if m.get("book_value") is not None:
+                    lines.append(f"- Book Value: ₹{_format_inr(m['book_value'])}")
+                pe_disp = f"{m['pe_ratio']:.1f}" if m.get("pe_ratio") is not None else "N/A"
+                mcap_disp = f" with a market capitalization of ₹{_format_inr(m['market_cap'])} Cr." if m.get("market_cap") is not None else "."
+                lines.append(
+                    f"\nValuation Assessment: {company_display} currently trades at a P/E of {pe_disp}{mcap_disp} "
+                    "Review fundamental earnings growth, debt coverage, and free cash flows before taking capital allocation decisions."
+                )
+                return "\n".join(lines)
 
         # Case C1: User specifically asks about profit / loss
         if is_profit_q and (net_profit_sample or pnl):
@@ -858,7 +701,31 @@ class AgenticRAGEngine:
                     lines.append(f"- Multi-period Sales Trend: {trend}")
             return "\n".join(lines)
 
-        # Case C3: General executive overview or Balance Sheet
+        # Case C3: User specifically asks about cash flow
+        is_cf_q = any(k in query.lower() for k in ("cash flow", "operating cash", "cfo", "cash from operations", "inflow", "outflow"))
+        cfo_val = m.get("operating_cash_flow")
+        cfo_sample = m.get("operating_cash_flow_sample", [])
+        if is_cf_q and (cfo_val is not None or cfo_sample):
+            lines.append("Cash Flow Performance:")
+            if cfo_val is not None:
+                lines.append(f"- Latest Operating Cash Flow (CFO): ₹{cfo_val:,.2f} Cr" if abs(cfo_val) < 100000 else f"- Latest Operating Cash Flow (CFO): ₹{cfo_val:,.0f}")
+            if len(cfo_sample) > 1:
+                trend = ", ".join(f"₹{x:,.2f} Cr" if abs(x) < 100000 else f"₹{x:,.0f}" for x in cfo_sample[-6:])
+                lines.append(f"- Multi-period Operating Cash Flow Trend: {trend}")
+            return "\n".join(lines)
+
+        # Case C4: User specifically asks about borrowings / debt
+        is_debt_q = any(k in query.lower() for k in ("borrowing", "borrowings", "debt", "loan", "loans", "leverage"))
+        if is_debt_q and (debt is not None or liabilities_sample):
+            d_val = debt if debt is not None else liabilities_sample[-1]
+            lines.append("Borrowings & Debt Profile:")
+            lines.append(f"- Total Borrowings / Outstanding Debt: ₹{d_val:,.2f} Cr" if abs(d_val) < 100000 else f"- Total Borrowings / Outstanding Debt: ₹{d_val:,.0f}")
+            if len(liabilities_sample) > 1:
+                trend = ", ".join(f"₹{x:,.2f} Cr" if abs(x) < 100000 else f"₹{x:,.0f}" for x in liabilities_sample[-6:])
+                lines.append(f"- Historical Borrowings Trend: {trend}")
+            return "\n".join(lines)
+
+        # Case C5: General executive overview or Balance Sheet
         if pnl:
             lines.append("1. Revenue & Profitability:")
             for p, pdata in list(pnl.items())[-4:]:

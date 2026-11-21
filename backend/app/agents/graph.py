@@ -306,6 +306,165 @@ _ROUTE_EXECUTORS = {
 }
 
 
+def _format_inr(val: float, decimals: int = 2) -> str:
+    is_neg = val < 0
+    val = abs(val)
+    int_part = int(round(val, decimals))
+    dec_str = f"{val:.{decimals}f}".split(".")[1] if decimals > 0 else ""
+    s = str(int_part)
+    if len(s) <= 3:
+        res = s
+    else:
+        last3 = s[-3:]
+        rest = s[:-3]
+        groups = []
+        while len(rest) > 2:
+            groups.insert(0, rest[-2:])
+            rest = rest[:-2]
+        if rest:
+            groups.insert(0, rest)
+        res = ",".join(groups) + "," + last3
+    if dec_str and float(dec_str) != 0:
+        res += "." + dec_str
+    return ("-" if is_neg else "") + res
+
+
+def _parse_business_context(text: str) -> dict[str, Any]:
+    facts: dict[str, Any] = {}
+    for line in text.splitlines():
+        line = line.strip()
+        m = re.search(r"Company name:\s*([A-Za-z0-9\s.,&'_-]+)", line, re.IGNORECASE)
+        if m:
+            facts["company"] = m.group(1).strip()
+        m = re.search(r"(?:corporate filing for|sheet for|model for|dataset for|filing for)\s+([A-Za-z0-9\s.,&'_-]+)", line, re.IGNORECASE)
+        if m and "company" not in facts:
+            facts["company"] = m.group(1).strip()
+        m = re.search(r"Revenue \(([^)]+)\):\s*([0-9,.]+)", line)
+        if m:
+            facts["period"], facts["revenue"] = m.group(1), float(m.group(2).replace(",", ""))
+        m = re.search(r"Net income \(([^)]+)\):\s*([0-9,.]+)", line)
+        if m:
+            facts["net_income"] = float(m.group(2).replace(",", ""))
+        m = re.search(r"Total assets \(([^)]+)\):\s*([0-9,.]+)", line)
+        if m:
+            facts["total_assets"] = float(m.group(2).replace(",", ""))
+        m = re.search(r"Total liabilities \(([^)]+)\):\s*([0-9,.]+)", line)
+        if m:
+            facts["total_liabilities"] = float(m.group(2).replace(",", ""))
+        m = re.search(r"Borrowings \(([^)]+)\):\s*([0-9,.]+)", line)
+        if m:
+            facts["borrowings"] = float(m.group(2).replace(",", ""))
+        m = re.search(r"Operating cash flow \(([^)]+)\):\s*([0-9,.]+)", line)
+        if m:
+            facts["cfo"] = float(m.group(2).replace(",", ""))
+        m = re.search(r"Shareholders' equity \(([^)]+)\):\s*([0-9,.]+)", line)
+        if m:
+            facts["equity"] = float(m.group(2).replace(",", ""))
+        m = re.search(r"net_margin_pct:\s*([0-9,.]+)", line)
+        if m:
+            facts["margin"] = float(m.group(1))
+        m = re.search(r"Multi-year revenue trajectory:\s*([^\n(]+)", line, re.IGNORECASE)
+        if m:
+            facts["multi_year_rev"] = m.group(1).strip()
+        m = re.search(r"Multi-year net profit trajectory:\s*([^\n(]+)", line, re.IGNORECASE)
+        if m:
+            facts["multi_year_net"] = m.group(1).strip()
+    return facts
+
+
+def _enrich_with_structured_context(
+    query: str,
+    current_decision: str,
+    context_text: str,
+) -> str:
+    facts = _parse_business_context(context_text)
+    if not facts or not facts.get("revenue"):
+        return current_decision
+
+    q_lower = query.lower()
+    comp = facts.get("company", "Uploaded Filing")
+    period = facts.get("period", "latest reporting period")
+    rev = facts.get("revenue")
+    net = facts.get("net_income")
+    assets = facts.get("total_assets")
+    liab = facts.get("total_liabilities")
+    borrow = facts.get("borrowings")
+    cfo = facts.get("cfo")
+    equity = facts.get("equity")
+    margin = facts.get("margin")
+    if margin is None and rev and net and rev > 0:
+        margin = round((net / rev) * 100, 2)
+
+    # Multi-year trajectory inquiry
+    if any(k in q_lower for k in ("multi-year", "across years", "across different years", "fy24", "fy25", "trend")):
+        parts = []
+        if facts.get("multi_year_rev"):
+            parts.append(f"Multi-Year Sales & Revenue Trajectory ({comp}):\n- {facts['multi_year_rev']}")
+        if facts.get("multi_year_net"):
+            parts.append(f"Net Profit Trajectory:\n- {facts['multi_year_net']}")
+        if parts:
+            return "\n\n".join(parts)
+
+    # Question about Revenue / Sales
+    if any(k in q_lower for k in ("revenue", "sales", "turnover", "top line", "topline")) and not any(k in q_lower for k in ("summary", "position", "overview", "balance sheet")):
+        unit_str = "Cr" if rev and rev > 100 else ""
+        return f"Total revenue for {comp} for the reporting period ending {period} is ₹{_format_inr(rev)} {unit_str}."
+
+    # Question about Profit / Loss / Net Income / PAT
+    if any(k in q_lower for k in ("profit", "pat", "net income", "loss", "margin", "earnings", "bottom line")) and not any(k in q_lower for k in ("summary", "position", "overview", "balance sheet")):
+        status = "Net Loss" if net and net < 0 else "Net Profit (PAT)"
+        unit_str = "Cr" if net and abs(net) > 100 else ""
+        margin_str = f" (representing a net margin of {margin:.2f}%)" if margin is not None else ""
+        return f"The latest reported {status} for {comp} for the period ending {period} is ₹{_format_inr(abs(net))} {unit_str}{margin_str}."
+
+    # Question about Borrowings / Debt / Loans
+    if any(k in q_lower for k in ("borrowing", "borrowings", "debt", "loan", "loans", "leverage")) and not any(k in q_lower for k in ("summary", "position", "overview")):
+        b_val = borrow if borrow is not None else 0.0
+        unit_str = "Cr" if b_val > 100 else ""
+        return f"Total borrowings for {comp} for the period ending {period} are ₹{_format_inr(b_val)} {unit_str}."
+
+    # Question about Cash Flow
+    if any(k in q_lower for k in ("cash flow", "operating cash", "cfo", "cash from operations")) and not any(k in q_lower for k in ("summary", "position", "overview")):
+        c_val = cfo if cfo is not None else 0.0
+        unit_str = "Cr" if abs(c_val) > 100 else ""
+        return f"Cash flow from operating activities (CFO) for {comp} for the period ending {period} is ₹{_format_inr(c_val)} {unit_str}."
+
+    # Question about Balance Sheet / Assets / Equity
+    if any(k in q_lower for k in ("balance sheet", "total asset", "total assets", "equity", "net worth", "liabilities")):
+        lines = [f"Balance Sheet & Capital Structure — {comp} (As at {period}):\n"]
+        if assets is not None:
+            lines.append(f"- Total Balance Sheet Assets: ₹{_format_inr(assets)} Cr" if assets > 100 else f"- Total Balance Sheet Assets: ₹{_format_inr(assets)}")
+        if equity is not None:
+            lines.append(f"- Shareholders' Equity (Net Worth): ₹{_format_inr(equity)} Cr" if equity > 100 else f"- Shareholders' Equity (Net Worth): ₹{_format_inr(equity)}")
+        if borrow is not None:
+            lines.append(f"- Total Borrowings (Debt): ₹{_format_inr(borrow)} Cr" if borrow > 100 else f"- Total Borrowings (Debt): ₹{_format_inr(borrow)}")
+        if liab is not None:
+            lines.append(f"- Total Liabilities: ₹{_format_inr(liab)} Cr" if liab > 100 else f"- Total Liabilities: ₹{_format_inr(liab)}")
+        return "\n".join(lines)
+
+    # Question about Summary / Financial Position / Executive Overview
+    if any(k in q_lower for k in ("summarize", "summary", "position", "financials", "overview", "performance")):
+        lines = [
+            f"Executive Financial Summary — {comp} (Period ending {period}):\n",
+            "1. Revenue & Profitability:",
+            f"- Total Revenue: ₹{_format_inr(rev)} Cr" if rev and rev > 100 else f"- Total Revenue: ₹{_format_inr(rev)}",
+            f"- Net Profit (PAT): ₹{_format_inr(net)} Cr (Net margin: {margin:.2f}%)" if net and abs(net) > 100 else f"- Net Profit: ₹{_format_inr(net)}",
+            "\n2. Balance Sheet & Capital Structure:",
+            f"- Total Assets: ₹{_format_inr(assets)} Cr" if assets and assets > 100 else f"- Total Assets: ₹{_format_inr(assets)}",
+        ]
+        if equity is not None:
+            lines.append(f"- Shareholders' Equity: ₹{_format_inr(equity)} Cr" if equity > 100 else f"- Shareholders' Equity: ₹{_format_inr(equity)}")
+        if borrow is not None:
+            lines.append(f"- Total Borrowings: ₹{_format_inr(borrow)} Cr" if borrow > 100 else f"- Total Borrowings: ₹{_format_inr(borrow)}")
+        if liab is not None:
+            lines.append(f"- Total Liabilities: ₹{_format_inr(liab)} Cr" if liab > 100 else f"- Total Liabilities: ₹{_format_inr(liab)}")
+        if cfo is not None:
+            lines.append(f"\n3. Cash Flow:\n- Operating Cash Flow: ₹{_format_inr(cfo)} Cr" if abs(cfo) > 100 else f"\n3. Cash Flow:\n- Operating Cash Flow: ₹{_format_inr(cfo)}")
+        return "\n".join(lines)
+
+    return current_decision
+
+
 def make_execute_tool(retriever: Retriever | None):
     def execute_tool(state: AgentState) -> dict[str, Any]:
         route = state.get("route", "rag:retrieve")
@@ -320,10 +479,20 @@ def make_execute_tool(retriever: Retriever | None):
             from app.rag.agentic_rag import AgenticRAGEngine
             agentic_rag = AgenticRAGEngine(retriever)
             result = agentic_rag.retrieve_and_reason(state.get("user_query", ""))
+
+            decision = result.reasoned_decision
+            biz_context = params.get("_business_context", "")
+            if biz_context:
+                decision = _enrich_with_structured_context(
+                    query=state.get("user_query", ""),
+                    current_decision=decision,
+                    context_text=biz_context,
+                )
+
             return {
                 "tool_result": {
                     "context": result.context.combined_text,
-                    "agentic_decision": result.reasoned_decision,
+                    "agentic_decision": decision,
                     "structured_metrics": result.structured_metrics,
                     "intent": result.intent.value,
                 },
@@ -412,7 +581,7 @@ def _template_response(state: AgentState) -> str:
         except (TypeError, ValueError):
             pass
     for k, v in result.items():
-        if k in ("context", "agentic_decision", "intent", "structured_metrics"):
+        if k in ("context", "agentic_decision", "intent", "structured_metrics") or str(k).startswith("_"):
             continue
         if isinstance(v, list):
             if v and not isinstance(v[0], dict):
@@ -433,7 +602,7 @@ def _template_response(state: AgentState) -> str:
     else:
         body = "See structured result for details."
     citations = state.get("rag_citations", [])
-    if citations:
+    if citations and "Sources:" not in body:
         body += "\n\nSources: " + "; ".join(citations)
     return body
 
@@ -497,8 +666,8 @@ def make_generate_response(llm_router: LLMRouter | None):
             "company name, or ratio. If a figure is not present in the provided data, say exactly that "
             "it is not available in the uploaded document.\n"
             "2. Never use the $ symbol or USD labels. Format every monetary amount in Indian Rupees using ₹. "
-            "For large Indian corporate statements (like Reliance Industries, SBI, etc.), numbers in the sheet represent Crores, "
-            "so append Cr (e.g. ₹80,775 Cr net profit, ₹10,55,780 Cr revenue, ₹21,77,546 Cr total assets).\n"
+            "Respect the unit specified in the provided data (e.g. ₹ in Crores, Lakhs, or exact ₹ as reported). "
+            "Never copy example figures or invent numbers not found in the provided context.\n"
             "3. If the data is insufficient to answer, say so clearly and specify exactly what is needed.\n"
             "4. If a question is unrelated to business finance, politely decline and redirect to a financial question.\n"
             "Be concise, accurate, and professional. Reply in plain chat text: no markdown formatting, "

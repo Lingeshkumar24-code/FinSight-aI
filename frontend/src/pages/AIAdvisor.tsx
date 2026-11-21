@@ -1,20 +1,35 @@
-import { useState, type FormEvent } from "react";
-import { api, ApiError } from "../lib/api";
+import { useEffect, useState, type FormEvent } from "react";
+import { api, ApiError, type DocumentListItem } from "../lib/api";
 
 interface ChatEntry {
   role: "user" | "assistant";
   text: string;
+  citations?: string[];
 }
 
 export function AIAdvisor() {
   const [messages, setMessages] = useState<ChatEntry[]>([
     {
       role: "assistant",
-      text: "Ask me about your budget, ratios, risk, forecasts, or \"what if\" scenarios — or anything in an uploaded document.",
+      text: "Ask me about your budget, ratios, risk, forecasts, or \"what if\" scenarios — or any business questions from your uploaded files (annual reports, balance sheets, proposals, or slide decks).",
     },
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [docs, setDocs] = useState<DocumentListItem[]>([]);
+  const [selectedDocId, setSelectedDocId] = useState<string>("all");
+
+  useEffect(() => {
+    async function loadDocs() {
+      try {
+        const list = await api.getDocuments();
+        setDocs(list);
+      } catch {
+        // ignore
+      }
+    }
+    void loadDocs();
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -26,8 +41,16 @@ export function AIAdvisor() {
     setSending(true);
 
     try {
-      const resp = await api.askAdvisor(query);
-      setMessages((prev) => [...prev, { role: "assistant", text: resp.answer }]);
+      const targetDoc = selectedDocId === "all" ? undefined : selectedDocId;
+      const resp = await api.askAdvisor(query, targetDoc);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          text: resp.answer,
+          citations: resp.citations,
+        },
+      ]);
     } catch (err) {
       const text = err instanceof ApiError ? err.message : "Something went wrong.";
       setMessages((prev) => [...prev, { role: "assistant", text: `Error: ${text}` }]);
@@ -38,11 +61,39 @@ export function AIAdvisor() {
 
   return (
     <div style={{ maxWidth: 880, display: "flex", flexDirection: "column", height: "calc(100vh - 150px)", minHeight: 480 }}>
-      <div style={{ marginBottom: 12 }}>
-        <h1 style={{ marginBottom: 4 }}>AI Financial Advisor</h1>
-        <p className="page-lead" style={{ margin: 0 }}>
-          Intelligent multi-agent financial deliberation over uploaded corporate filings and live computations.
-        </p>
+      <div style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ marginBottom: 4 }}>AI Financial Advisor</h1>
+          <p className="page-lead" style={{ margin: 0 }}>
+            Intelligent multi-agent financial deliberation over uploaded corporate filings and live computations.
+          </p>
+        </div>
+
+        {docs.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#F5F3EF", padding: "6px 12px", borderRadius: 8, border: "1px solid #E5E0D8" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-muted)" }}>Target Document:</span>
+            <select
+              value={selectedDocId}
+              onChange={(e) => setSelectedDocId(e.target.value)}
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                padding: "3px 8px",
+                borderRadius: 6,
+                border: "1px solid #DCD6CA",
+                background: "#FFFFFF",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">🔍 All Documents (Auto-Detect)</option>
+              {docs.map((d) => (
+                <option key={d.id} value={d.id}>
+                  📄 {d.filename}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div
@@ -74,8 +125,13 @@ export function AIAdvisor() {
           data-testid="chat-log"
         >
           {messages.map((m, i) => (
-            <div key={i} className={`chat-bubble ${m.role}`}>
+            <div key={i} className={`chat-bubble ${m.role}`} style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
               {m.text}
+              {m.citations && m.citations.length > 0 && !m.text.includes("Sources:") && (
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed rgba(0,0,0,0.1)", fontSize: 11.5, color: "var(--ink-muted)" }}>
+                  📎 Sources: {m.citations.join("; ")}
+                </div>
+              )}
             </div>
           ))}
           {sending && (

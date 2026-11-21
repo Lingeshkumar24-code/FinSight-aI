@@ -239,60 +239,146 @@ def _extract_from_data_sheet(
 ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
     company_name = str(ds.cell(1, 2).value or "").strip() or "Indian Enterprise"
 
-    # P&L report periods from row 16
+    # Scan all rows in Data Sheet and group into sections
+    sections: dict[str, dict[str, int]] = {
+        "pnl": {},
+        "bs": {},
+        "cf": {},
+    }
+    current_sec = "pnl"
+    for r in range(1, ds.max_row + 1):
+        v = str(ds.cell(r, 1).value or "").strip()
+        v_upper = v.upper()
+        if "PROFIT & LOSS" in v_upper or "INCOME STATEMENT" in v_upper:
+            current_sec = "pnl"
+            continue
+        elif "BALANCE SHEET" in v_upper:
+            current_sec = "bs"
+            continue
+        elif "CASH FLOW" in v_upper:
+            current_sec = "cf"
+            continue
+        elif "QUARTERS" in v_upper:
+            current_sec = "quarters"
+            continue
+
+        if v and current_sec in sections:
+            lbl_clean = v.lower()
+            if lbl_clean not in sections[current_sec]:
+                sections[current_sec][lbl_clean] = r
+
+    # Determine P&L period columns from the row with 'report date' in pnl section
+    report_date_row = sections["pnl"].get("report date") or sections["pnl"].get("narration")
+    if not report_date_row:
+        for r in range(1, ds.max_row + 1):
+            if "report date" in str(ds.cell(r, 1).value or "").lower():
+                report_date_row = r
+                break
+
+    if not report_date_row:
+        return company_name, [], []
+
     cols: list[tuple[int, str]] = []
     for c in range(2, ds.max_column + 1):
-        v = ds.cell(16, c).value
+        v = ds.cell(report_date_row, c).value
         if v:
             s = v.isoformat()[:10] if hasattr(v, "isoformat") else str(v)[:10]
-            if s and s.lower() != "report date":
+            if s and "report" not in s.lower() and "trailing" not in s.lower():
                 cols.append((c, s))
 
     if not cols:
         return company_name, [], []
 
+    def get_row(sec_name: str, label_keywords: tuple[str, ...]) -> int | None:
+        sec = sections.get(sec_name, {})
+        for kw in label_keywords:
+            for lbl, r_idx in sec.items():
+                if kw == lbl or lbl.startswith(kw) or f" {kw}" in lbl:
+                    return r_idx
+        # Fallback across entire sheet
+        for r_idx in range(1, ds.max_row + 1):
+            cell_txt = str(ds.cell(r_idx, 1).value or "").lower()
+            for kw in label_keywords:
+                if kw == cell_txt or cell_txt.startswith(kw):
+                    return r_idx
+        return None
+
+    r_sales = get_row("pnl", ("sales", "revenue", "turnover"))
+    r_net_profit = get_row("pnl", ("net profit", "pat", "profit after tax"))
+    r_pbt = get_row("pnl", ("profit before tax", "pbt"))
+    r_tax = get_row("pnl", ("tax",))
+    r_depr = get_row("pnl", ("depreciation",))
+    r_int = get_row("pnl", ("interest",))
+
+    r_eq_cap = get_row("bs", ("equity share capital", "share capital", "equity capital"))
+    r_reserves = get_row("bs", ("reserves",))
+    r_borrowings = get_row("bs", ("borrowings", "total debt", "debt"))
+    r_other_liab = get_row("bs", ("other liabilities",))
+    r_total_assets = get_row("bs", ("total", "total assets"))
+    r_cash = get_row("bs", ("cash & bank", "cash and bank", "cash"))
+    r_debtors = get_row("bs", ("receivables", "debtors", "trade receivables"))
+    r_inventory = get_row("bs", ("inventory", "inventories"))
+
+    r_cfo = get_row("cf", ("cash from operating activity", "operating cash flow", "cash from operations"))
+    r_cfi = get_row("cf", ("cash from investing activity", "investing cash flow"))
+    r_cff = get_row("cf", ("cash from financing activity", "financing cash flow"))
+    r_net_cf = get_row("cf", ("net cash flow",))
+
     records: list[dict[str, Any]] = []
     cashflows: list[dict[str, Any]] = []
 
     for c, period_str in cols:
-        sales = _to_float(ds.cell(17, c).value)
-        expenses = sum(_to_float(ds.cell(r, c).value) for r in (21, 22, 23, 24))
-        depr = _to_float(ds.cell(26, c).value)
-        interest = _to_float(ds.cell(27, c).value)
-        pbt = _to_float(ds.cell(28, c).value)
-        tax = _to_float(ds.cell(29, c).value)
-        net_profit = _to_float(ds.cell(30, c).value)
+        sales = _to_float(ds.cell(r_sales, c).value) if r_sales else 0.0
+        net_profit = _to_float(ds.cell(r_net_profit, c).value) if r_net_profit else 0.0
+        depr = _to_float(ds.cell(r_depr, c).value) if r_depr else 0.0
+        interest = _to_float(ds.cell(r_int, c).value) if r_int else 0.0
+        pbt = _to_float(ds.cell(r_pbt, c).value) if r_pbt else 0.0
+        tax = _to_float(ds.cell(r_tax, c).value) if r_tax else 0.0
 
-        eq_cap = _to_float(ds.cell(57, c).value)
-        reserves = _to_float(ds.cell(58, c).value)
+        eq_cap = _to_float(ds.cell(r_eq_cap, c).value) if r_eq_cap else 0.0
+        reserves = _to_float(ds.cell(r_reserves, c).value) if r_reserves else 0.0
         equity = eq_cap + reserves
 
-        borrowings = _to_float(ds.cell(59, c).value)
-        other_liab = _to_float(ds.cell(60, c).value)
-        total_assets = _to_float(ds.cell(66, c).value) or (equity + borrowings + other_liab)
-        cash = _to_float(ds.cell(69, c).value)
+        borrowings = _to_float(ds.cell(r_borrowings, c).value) if r_borrowings else 0.0
+        other_liab = _to_float(ds.cell(r_other_liab, c).value) if r_other_liab else 0.0
+        total_assets = _to_float(ds.cell(r_total_assets, c).value) if r_total_assets else (equity + borrowings + other_liab)
+        cash = _to_float(ds.cell(r_cash, c).value) if r_cash else 0.0
+        debtors = _to_float(ds.cell(r_debtors, c).value) if r_debtors else 0.0
+        inv_val = _to_float(ds.cell(r_inventory, c).value) if r_inventory else 0.0
 
-        cfo = _to_float(ds.cell(82, c).value)
-        cfi = _to_float(ds.cell(83, c).value)
-        cff = _to_float(ds.cell(84, c).value)
+        cfo = _to_float(ds.cell(r_cfo, c).value) if r_cfo else 0.0
+        cfi = _to_float(ds.cell(r_cfi, c).value) if r_cfi else 0.0
+        cff = _to_float(ds.cell(r_cff, c).value) if r_cff else 0.0
+        net_cf = _to_float(ds.cell(r_net_cf, c).value) if r_net_cf else (cfo + cfi + cff)
+
+        # Estimate expenses and COGS accurately
+        ebit = pbt + interest if pbt else (net_profit + tax + interest if net_profit else sales * 0.15)
+        operating_profit = ebit + depr
+        cogs = max(0.0, sales - operating_profit) if sales > operating_profit else sales * 0.65
+        operating_expenses = max(0.0, sales - cogs - net_profit) if sales > 0 else 0.0
+
+        total_cur_assets = debtors + inv_val + cash
+        total_cur_liab = other_liab if other_liab > 0 else (borrowings * 0.3)
 
         records.append({
             "period": period_str,
             "revenue": sales,
-            "cogs": round(expenses * 0.65, 2),
-            "operating_expenses": round(expenses * 0.35 + depr, 2),
+            "cogs": round(cogs, 2),
+            "operating_expenses": round(operating_expenses, 2),
             "net_income": net_profit,
             "total_assets": total_assets,
             "total_liabilities": borrowings + other_liab,
             "total_equity": equity,
-            "total_current_assets": round(cash * 1.5, 2) if cash else round(total_assets * 0.2, 2),
-            "total_current_liabilities": round(other_liab * 0.5, 2) if other_liab else round((borrowings + other_liab) * 0.25, 2),
+            "total_current_assets": round(total_cur_assets, 2) if total_cur_assets else round(total_assets * 0.25, 2),
+            "total_current_liabilities": round(total_cur_liab, 2),
             "cash": cash,
             "closing_cash": cash,
+            "accounts_receivable": debtors,
+            "inventory": inv_val,
             "short_term_debt": round(borrowings * 0.25, 2),
             "long_term_debt": round(borrowings * 0.75, 2),
             "interest_expense": interest,
-            "ebit": pbt + interest if pbt else net_profit + tax + interest,
+            "ebit": ebit,
             "operating_cash_flow": cfo,
             "investing_cash_flow": cfi,
             "financing_cash_flow": cff,
@@ -302,14 +388,15 @@ def _extract_from_data_sheet(
         cashflows.append({
             "period": period_str,
             "opening_cash": cash,
-            "operating_inflow": sales,
-            "operating_outflow": expenses,
-            "investing_inflow": 0.0,
+            "operating_inflow": max(0.0, cfo) if cfo else sales,
+            "operating_outflow": abs(min(0.0, cfo)) if cfo < 0 else max(0.0, sales - cfo),
+            "investing_inflow": max(0.0, cfi),
             "investing_outflow": abs(cfi) if cfi < 0 else 0.0,
-            "financing_inflow": cff if cff > 0 else 0.0,
+            "financing_inflow": max(0.0, cff),
             "financing_outflow": abs(cff) if cff < 0 else 0.0,
             "closing_cash": cash,
-            "notes": f"Operating Cash Flow: ₹{cfo:,.0f} Cr",
+            "net": net_cf,
+            "notes": f"Operating Cash Flow: ₹{cfo:,.2f} Cr",
         })
 
     return company_name, records, cashflows

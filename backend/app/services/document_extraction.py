@@ -46,6 +46,8 @@ def extract_document(filename: str, raw: bytes) -> ExtractedDocument:
         return _extract_excel(raw, suffix)
     if suffix == ".docx":
         return _extract_docx(raw)
+    if suffix == ".pptx":
+        return _extract_pptx(raw)
     if suffix == ".csv":
         return _extract_csv(raw)
     if suffix in {".txt", ".md"}:
@@ -138,6 +140,43 @@ def _extract_docx(raw: bytes) -> ExtractedDocument:
         return ExtractedDocument("\n\n".join(lines), {"file_type": "docx", "tables": len(document.tables)})
     except Exception as exc:
         raise _failure("Failed to parse DOCX document", exc) from exc
+
+
+def _extract_pptx(raw: bytes) -> ExtractedDocument:
+    try:
+        from pptx import Presentation
+
+        prs = Presentation(io.BytesIO(raw))
+        sections: list[str] = []
+        for slide_idx, slide in enumerate(prs.slides, start=1):
+            slide_lines = [f"=== Slide: {slide_idx} ==="]
+            title = ""
+            if slide.shapes.title and slide.shapes.title.text.strip():
+                title = slide.shapes.title.text.strip()
+                slide_lines.append(f"Title: {title}")
+
+            for shape in slide.shapes:
+                if shape == slide.shapes.title:
+                    continue
+                if shape.has_text_frame:
+                    text = shape.text_frame.text.strip()
+                    if text and text != title:
+                        slide_lines.append(text)
+                elif shape.has_table:
+                    table = shape.table
+                    rows = []
+                    for row in table.rows:
+                        row_vals = [cell.text.strip() for cell in row.cells]
+                        if any(row_vals):
+                            rows.append(" | ".join(row_vals))
+                    if rows:
+                        slide_lines.append("--- Table ---")
+                        slide_lines.extend(rows)
+            if len(slide_lines) > 1:
+                sections.append("\n".join(slide_lines))
+        return ExtractedDocument("\n\n".join(sections), {"file_type": "pptx", "slides": len(prs.slides)})
+    except Exception as exc:
+        raise _failure("Failed to parse PowerPoint document", exc) from exc
 
 
 def _extract_csv(raw: bytes) -> ExtractedDocument:

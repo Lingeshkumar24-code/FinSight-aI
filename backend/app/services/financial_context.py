@@ -66,6 +66,12 @@ async def build_context(session: AsyncSession, business_id: str) -> FinancialCon
     periods = [r.period for r in records]
     latest = records[-1] if records else None
 
+    from app.db.models import Business
+    biz = (await session.execute(select(Business).where(Business.id == business_id))).scalar_one_or_none()
+    comp_name = biz.name if biz and biz.name not in ("User Workspace", "My Business") else ""
+    if comp_name:
+        add("verified", "Company name", comp_name, "workspace business profile")
+
     if latest is not None:
         source_label = (
             f"verified uploaded document {latest.source_document_id}"
@@ -77,6 +83,30 @@ async def build_context(session: AsyncSession, business_id: str) -> FinancialCon
         add(verified_category, f"Net income ({latest.period})", latest.net_income, source_label)
         add(verified_category, f"Total assets ({latest.period})", latest.total_assets, source_label)
         add(verified_category, f"Total liabilities ({latest.period})", latest.total_liabilities, source_label)
+
+        borrowings = (_num(latest.short_term_debt) or 0.0) + (_num(latest.long_term_debt) or 0.0)
+        if borrowings > 0:
+            add(verified_category, f"Borrowings ({latest.period})", borrowings, source_label)
+        if latest.operating_cash_flow is not None:
+            add(verified_category, f"Operating cash flow ({latest.period})", latest.operating_cash_flow, source_label)
+        if latest.total_equity is not None:
+            add(verified_category, f"Shareholders' equity ({latest.period})", latest.total_equity, source_label)
+        if latest.notes:
+            add(verified_category, "Company notes", latest.notes, source_label)
+
+        if len(records) > 1:
+            rev_items = []
+            net_items = []
+            for r in records[-5:]:
+                p_lbl = f"FY{r.period[2:4]}" if len(r.period) >= 4 and r.period.startswith("20") else r.period
+                if r.revenue:
+                    rev_items.append(f"{p_lbl}: {r.revenue:,.2f}")
+                if r.net_income is not None:
+                    net_items.append(f"{p_lbl}: {r.net_income:,.2f}")
+            if rev_items:
+                add("historical", "Multi-year revenue trajectory", " | ".join(rev_items), source_label)
+            if net_items:
+                add("historical", "Multi-year net profit trajectory", " | ".join(net_items), source_label)
 
         cash = _num(latest.cash) or 0.0
         receivables = _num(latest.accounts_receivable) or 0.0

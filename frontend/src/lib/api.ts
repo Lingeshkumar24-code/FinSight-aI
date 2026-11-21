@@ -979,11 +979,23 @@ export const api = {
       body: JSON.stringify(inputs),
     }),
 
-  askAdvisor: (query: string, extractedParams: Record<string, unknown> = {}) =>
-    request<AdvisorResponse>("/advisor/ask", {
+  askAdvisor: (
+    query: string,
+    documentIdOrParams?: string | Record<string, unknown>,
+    extractedParams: Record<string, unknown> = {}
+  ) => {
+    let docId: string | null = null;
+    let params: Record<string, unknown> = extractedParams;
+    if (typeof documentIdOrParams === "string") {
+      docId = documentIdOrParams;
+    } else if (documentIdOrParams && typeof documentIdOrParams === "object") {
+      params = documentIdOrParams;
+    }
+    return request<AdvisorResponse>("/advisor/ask", {
       method: "POST",
-      body: JSON.stringify({ query, extracted_params: extractedParams }),
-    }),
+      body: JSON.stringify({ query, document_id: docId, extracted_params: params }),
+    });
+  },
 
   simulateWhatIf: (payload: {
     starting_revenue: number;

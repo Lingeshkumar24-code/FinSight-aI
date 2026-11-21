@@ -49,6 +49,22 @@ _STOPWORDS = {
 }
 
 
+_SYNONYM_GROUPS: list[set[str]] = [
+    {"revenue", "sales", "turnover", "topline", "invoiced"},
+    {"profit", "pat", "income", "earnings", "bottomline"},
+    {"debt", "borrowing", "borrowings", "loan", "loans", "liabilities"},
+    {"equity", "reserves", "networth", "worth"},
+    {"cash", "bank", "liquidity", "cashflow"},
+    {"expenses", "costs", "cogs", "expenditure", "opex"},
+    {"assets", "asset"},
+]
+
+_SYN_MAP: dict[str, set[str]] = {}
+for _group in _SYNONYM_GROUPS:
+    for _w in _group:
+        _SYN_MAP[_w] = _group
+
+
 def _tokenize(text: str) -> list[str]:
     raw = _WORD_RE.findall(text.lower())
     filtered = [w for w in raw if w not in _STOPWORDS]
@@ -57,6 +73,16 @@ def _tokenize(text: str) -> list[str]:
 
 def _vectorize(text: str) -> Counter:
     return Counter(_tokenize(text))
+
+
+def _expand_query_vector(vec: Counter) -> Counter:
+    expanded = Counter(vec)
+    for term in list(vec.keys()):
+        if term in _SYN_MAP:
+            for syn in _SYN_MAP[term]:
+                if syn not in expanded:
+                    expanded[syn] = 0.6
+    return expanded
 
 
 def _cosine_similarity(a: Counter, b: Counter) -> float:
@@ -119,7 +145,7 @@ class InMemoryVectorStore(VectorStore):
         top_k: int = 5,
         metadata_filter: dict | None = None,
     ) -> list[ScoredChunk]:
-        query_vec = _vectorize(query)
+        query_vec = _expand_query_vector(_vectorize(query))
         scored = [
             ScoredChunk(chunk=self._chunks[cid], score=_cosine_similarity(query_vec, vec))
             for cid, vec in self._vectors.items()

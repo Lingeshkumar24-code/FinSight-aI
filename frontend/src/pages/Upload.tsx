@@ -87,6 +87,7 @@ export function Upload() {
   const [historyDocs, setHistoryDocs] = useState<DocumentListItem[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [activeDocId, setActiveDocId] = useState<string>("all");
 
   const loadDocuments = useCallback(async () => {
     setLoadingDocs(true);
@@ -173,9 +174,12 @@ export function Upload() {
       const resp = await api.uploadDocument(selectedFile);
       setResult(resp);
       void loadDocuments();
-      setRedirectCount(3);
+      if (resp.document_id) {
+        setActiveDocId(resp.document_id);
+      }
+      setRedirectCount(null); // Don't force auto-redirect; let the user explore
       setUploading(false);
-      void askQuestion("Summarize the financial data in this document", true);
+      void askQuestion("Summarize the financial data in this document", true, resp.document_id);
     } catch (err) {
       setUploadError(err instanceof ApiError ? err.message : "Upload failed. Please try again.");
     } finally {
@@ -185,14 +189,15 @@ export function Upload() {
 
   // ── AI Q&A ─────────────────────────────────────────────────────────────────
 
-  async function askQuestion(q: string, isAuto = false) {
+  async function askQuestion(q: string, isAuto = false, targetDocId?: string) {
     const trimmed = q.trim();
     if (!trimmed) return;
     setAsking(true);
     setAiError(null);
     if (!isAuto) setAiAnswer(null);
     try {
-      const resp = await api.askAdvisor(trimmed);
+      const docScope = targetDocId || (activeDocId !== "all" ? activeDocId : undefined);
+      const resp = await api.askAdvisor(trimmed, docScope);
       setAiAnswer(resp);
       if (isAuto) setAutoAnswerDone(true);
     } catch (err) {
@@ -410,10 +415,36 @@ export function Upload() {
               <span className="section-run">RAG Semantic Search &amp; Verified CFO Deliberation</span>
             </div>
           </div>
-        <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: "6px 0 16px" }}>
+        <p style={{ fontSize: 13, color: "var(--ink-soft)", margin: "6px 0 14px" }}>
           Ask anything about your corporate filings — revenue trends, profit margins, balance sheet assets, debt,
           and ratios. All monetary values are verified from chunks and formatted in <strong>₹ Indian Rupees</strong>.
         </p>
+
+        {historyDocs.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, background: "#F5F3EF", padding: "6px 12px", borderRadius: 8, border: "1px solid #E5E0D8", width: "fit-content" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-muted)" }}>Target Document:</span>
+            <select
+              value={activeDocId}
+              onChange={(e) => setActiveDocId(e.target.value)}
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                padding: "3px 8px",
+                borderRadius: 6,
+                border: "1px solid #DCD6CA",
+                background: "#FFFFFF",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">🔍 All Documents / Auto-detect</option>
+              {historyDocs.map((d) => (
+                <option key={d.id} value={d.id}>
+                  📄 {d.filename}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <form onSubmit={handleAskSubmit} style={{ display: "flex", gap: 10 }}>
           <input
@@ -665,8 +696,9 @@ export function Upload() {
                           onClick={() => {
                             const q = `Summarize the financial data in ${doc.filename}`;
                             setQuestion(q);
+                            setActiveDocId(doc.id);
                             document.getElementById("ask-ai-section")?.scrollIntoView({ behavior: "smooth" });
-                            void askQuestion(q);
+                            void askQuestion(q, false, doc.id);
                           }}
                           style={{
                             padding: "4px 10px",
