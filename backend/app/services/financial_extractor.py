@@ -11,7 +11,10 @@ Supports:
 """
 from __future__ import annotations
 
+import csv
 import io
+import json
+import re
 from typing import Any
 import openpyxl
 
@@ -37,60 +40,322 @@ def _clean_str(val: Any) -> str:
 
 
 def extract_financial_records_from_workbook(
-    raw: bytes, filename: str
+    raw: bytes, filename: str, extracted_text: str = ""
 ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
     """
-    Parse an Excel/CSV workbook and extract structured financial records.
+    Parse any Excel, CSV, or financial document and extract structured financial records.
+    Supports:
+        1. Screener.in corporate exports (multi-period, multi-sheet)
+        2. Synthetic ERP / FinSight datasets
+        3. Standard 3-statement models
+        4. General single-sheet and multi-sheet Excel files
+        5. CSV exports (row-oriented or column-oriented)
+        6. Tabular text extracted from PDF, DOCX, or text files
     Returns:
         (company_name, list_of_financial_records, list_of_cashflow_records)
     """
     lower_fn = filename.lower()
-    if not (lower_fn.endswith((".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"))):
-        return "", [], []
 
-    try:
-        wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
-    except Exception:
-        return "", [], []
-
-    sheet_names = wb.sheetnames
-    company_name = ""
-
-    # 1. Check for Screener.in format
-    # Typically has 'data sheet' or 'quarters' or row 3 narration in income_statement / profit & loss
-    lower_sheets = {s.lower(): s for s in sheet_names}
-    is_screener = (
-        any(k in lower_sheets for k in ("income_statement", "income statement", "profit & loss", "p&l"))
-        and any(k in lower_sheets for k in ("balance_sheet", "balance sheet"))
-        and any(k in lower_sheets for k in ("data sheet", "quarters", "customization"))
-    )
-    if is_screener:
-        company_name, records, cashflows = _extract_screener_format(wb, lower_sheets)
-        wb.close()
+    # 1. CSV Format
+    if lower_fn.endswith(".csv"):
+        company_name, records, cashflows = _extract_csv_format(raw, filename)
         if records:
             return company_name, records, cashflows
 
-    # 2. Check for Synthetic / FinSight ERP format
-    # Has 'Annual P&L' or 'annual p&l' and ('Balance Sheet' or 'balance sheet')
-    if any("annual p&l" in s for s in lower_sheets) or (
-        "p&l" in lower_sheets and "balance sheet" in lower_sheets
-    ):
-        company_name, records, cashflows = _extract_synthetic_format(wb, lower_sheets)
-        wb.close()
+    # 2. Excel Format
+    if lower_fn.endswith((".xlsx", ".xlsm", ".xltx", ".xltm", ".xls")):
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
+            sheet_names = wb.sheetnames
+            lower_sheets = {s.lower(): s for s in sheet_names}
+
+            # 2a. Screener format
+            is_screener = (
+                any(k in lower_sheets for k in ("income_statement", "income statement", "profit & loss", "p&l"))
+                and any(k in lower_sheets for k in ("balance_sheet", "balance sheet"))
+                and any(k in lower_sheets for k in ("data sheet", "quarters", "customization"))
+            )
+            if is_screener:
+                company_name, records, cashflows = _extract_screener_format(wb, lower_sheets)
+                wb.close()
+                if records:
+                    return company_name, records, cashflows
+
+            # 2b. Synthetic / ERP format
+            if any("annual p&l" in s for s in lower_sheets) or (
+                "p&l" in lower_sheets and "balance sheet" in lower_sheets
+            ):
+                company_name, records, cashflows = _extract_synthetic_format(wb, lower_sheets)
+                wb.close()
+                if records:
+                    return company_name, records, cashflows
+
+            # 2c. 3-statement format
+            if ("income_statement" in lower_sheets or "income statement" in lower_sheets) and (
+                "balance_sheet" in lower_sheets or "balance sheet" in lower_sheets
+            ):
+                company_name, records, cashflows = _extract_three_statement_format(wb, lower_sheets)
+                wb.close()
+                if records:
+                    return company_name, records, cashflows
+
+            # 2d. General tabular Excel format (any sheet with financials)
+            company_name, records, cashflows = _extract_general_excel_format(wb, sheet_names, filename)
+            wb.close()
+            if records:
+                return company_name, records, cashflows
+
+        except Exception:
+            pass
+
+    # 3. Fallback: Parse tabular text from PDF, DOCX, or text files
+    if extracted_text:
+        company_name, records, cashflows = _extract_from_tabular_text(extracted_text, filename)
         if records:
             return company_name, records, cashflows
 
-    # 3. Check for 3-statement format (Income_Statement / Balance_Sheet)
-    if ("income_statement" in lower_sheets or "income statement" in lower_sheets) and (
-        "balance_sheet" in lower_sheets or "balance sheet" in lower_sheets
-    ):
-        company_name, records, cashflows = _extract_three_statement_format(wb, lower_sheets)
-        wb.close()
-        if records:
-            return company_name, records, cashflows
-
-    wb.close()
     return "", [], []
+
+
+def _extract_from_table_rows(
+    rows: list[list[str]], company_name: str, filename: str
+) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+    if not rows or len(rows) < 2:
+        return company_name, [], []
+
+    header = [c.lower() for c in rows[0]]
+
+    col_metric_terms = {
+        "revenue": ("revenue", "sales", "turnover", "total income"),
+        "cogs": ("cogs", "cost of goods", "cost of sales"),
+        "operating_expenses": ("operating expenses", "opex", "total expenses", "expenses"),
+        "net_income": ("net income", "net profit", "pat", "profit after tax", "profit / (loss)", "net loss"),
+        "total_assets": ("total assets", "assets", "balance sheet total"),
+        "total_liabilities": ("total liabilities",),
+        "borrowings": ("borrowings", "total borrowings", "total debt", "interest-bearing debt"),
+        "cash": ("cash & bank", "cash and bank", "cash", "bank balance", "closing cash"),
+        "operating_cash_flow": ("cash from operating", "operating cash flow", "cash flow from operations"),
+        "total_equity": ("total equity", "shareholders equity", "net worth", "share capital"),
+    }
+
+    # Orientation 1: Columnar (rows are periods, columns are metrics)
+    col_idx_map: dict[str, int] = {}
+    period_col_idx = 0
+    for idx, col_name in enumerate(header):
+        if any(k in col_name for k in ("period", "date", "year", "fy", "quarter")):
+            period_col_idx = idx
+            continue
+        for metric_key, terms in col_metric_terms.items():
+            if metric_key not in col_idx_map and any(t in col_name for t in terms):
+                col_idx_map[metric_key] = idx
+                break
+
+    if "revenue" in col_idx_map or "total_assets" in col_idx_map:
+        records: list[dict[str, Any]] = []
+        cashflows: list[dict[str, Any]] = []
+        for r in rows[1:]:
+            if len(r) <= max(col_idx_map.values(), default=0):
+                continue
+            period = r[period_col_idx] if len(r) > period_col_idx else f"Period {len(records)+1}"
+            if not period:
+                continue
+            rev = _to_float(r[col_idx_map["revenue"]]) if "revenue" in col_idx_map else 0.0
+            cogs = _to_float(r[col_idx_map["cogs"]]) if "cogs" in col_idx_map else None
+            opex = _to_float(r[col_idx_map["operating_expenses"]]) if "operating_expenses" in col_idx_map else None
+            net = _to_float(r[col_idx_map["net_income"]]) if "net_income" in col_idx_map else None
+            assets = _to_float(r[col_idx_map["total_assets"]]) if "total_assets" in col_idx_map else None
+            liab = _to_float(r[col_idx_map["total_liabilities"]]) if "total_liabilities" in col_idx_map else None
+            borrowings = _to_float(r[col_idx_map["borrowings"]]) if "borrowings" in col_idx_map else None
+            cash = _to_float(r[col_idx_map["cash"]]) if "cash" in col_idx_map else None
+            cfo = _to_float(r[col_idx_map["operating_cash_flow"]]) if "operating_cash_flow" in col_idx_map else None
+            eq = _to_float(r[col_idx_map["total_equity"]]) if "total_equity" in col_idx_map else None
+
+            records.append({
+                "period": period,
+                "revenue": rev,
+                "cogs": cogs,
+                "operating_expenses": opex,
+                "net_income": net,
+                "total_assets": assets,
+                "total_liabilities": liab,
+                "short_term_debt": 0.0 if borrowings is not None else None,
+                "long_term_debt": borrowings,
+                "cash": cash,
+                "closing_cash": cash,
+                "operating_cash_flow": cfo,
+                "net_cash_flow": None,
+                "total_equity": eq,
+                "total_current_assets": None,
+                "total_current_liabilities": None,
+                "accounts_receivable": None,
+                "inventory": None,
+                "ebit": None,
+                "interest_expense": None,
+                "notes": f"Extracted from {filename}",
+            })
+            if cfo is not None or cash is not None:
+                cashflows.append({
+                    "period": period,
+                    "inflow": max(0.0, cfo or 0.0),
+                    "outflow": abs(min(0.0, cfo or 0.0)),
+                    "closing_cash": cash or 0.0,
+                })
+        if records:
+            return company_name, records, cashflows
+
+    # Orientation 2: Row-oriented (rows are line items, columns are periods)
+    period_row_idx = -1
+    period_cols: list[tuple[int, str]] = []
+    for r_idx, r in enumerate(rows[:5]):
+        matches = [(c_idx, val) for c_idx, val in enumerate(r) if re.search(r"(?:20\d\d|FY\s*\d\d|Q[1-4]\s*20\d\d|Mar\s*20\d\d)", val, re.IGNORECASE)]
+        if len(matches) >= 2:
+            period_row_idx = r_idx
+            period_cols = matches
+            break
+
+    if period_cols:
+        row_map: dict[str, dict[int, float]] = {}
+        for r in rows[period_row_idx+1:]:
+            if not r or not r[0].strip():
+                continue
+            lbl = r[0].strip().lower()
+            row_map[lbl] = {c_idx: _to_float(r[c_idx]) for c_idx, _ in period_cols if c_idx < len(r)}
+
+        def get_row_val(terms: tuple[str, ...], c_idx: int) -> float | None:
+            for lbl, vals in row_map.items():
+                if any(t in lbl for t in terms):
+                    if c_idx in vals:
+                        return vals[c_idx]
+            return None
+
+        records = []
+        cashflows = []
+        for c_idx, p_name in period_cols:
+            rev = get_row_val(("sales", "revenue", "turnover", "total income"), c_idx) or 0.0
+            cogs = get_row_val(("cogs", "cost of goods", "raw material"), c_idx)
+            opex = get_row_val(("operating expenses", "expenses", "opex"), c_idx)
+            net = get_row_val(("net profit", "pat", "net income", "profit after tax"), c_idx)
+            assets = get_row_val(("total assets", "assets", "balance sheet total"), c_idx)
+            liab = get_row_val(("total liabilities",), c_idx)
+            borrowings = get_row_val(("borrowings", "total debt", "interest-bearing debt"), c_idx)
+            cash = get_row_val(("cash & bank", "cash and bank", "cash", "bank balance"), c_idx)
+            cfo = get_row_val(("cash from operating", "operating cash flow", "cash flow from operations"), c_idx)
+            eq = get_row_val(("total equity", "equity share capital", "share capital", "shareholders equity", "net worth"), c_idx)
+
+            records.append({
+                "period": p_name,
+                "revenue": rev,
+                "cogs": cogs,
+                "operating_expenses": opex,
+                "net_income": net,
+                "total_assets": assets,
+                "total_liabilities": liab,
+                "short_term_debt": 0.0 if borrowings is not None else None,
+                "long_term_debt": borrowings,
+                "cash": cash,
+                "closing_cash": cash,
+                "operating_cash_flow": cfo,
+                "net_cash_flow": None,
+                "total_equity": eq,
+                "total_current_assets": None,
+                "total_current_liabilities": None,
+                "accounts_receivable": None,
+                "inventory": None,
+                "ebit": None,
+                "interest_expense": None,
+                "notes": f"Extracted from {filename}",
+            })
+            if cfo is not None or cash is not None:
+                cashflows.append({
+                    "period": p_name,
+                    "inflow": max(0.0, cfo or 0.0),
+                    "outflow": abs(min(0.0, cfo or 0.0)),
+                    "closing_cash": cash or 0.0,
+                })
+        if records:
+            return company_name, records, cashflows
+
+    return company_name, [], []
+
+
+def _extract_csv_format(
+    raw: bytes, filename: str
+) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+    company_name = re.sub(r"\.[^.]+$", "", filename).replace("_", " ").replace("-", " ").strip()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        try:
+            text = raw.decode("latin-1")
+        except Exception:
+            return company_name, [], []
+
+    lines = [l for l in text.splitlines() if l.strip()]
+    if not lines:
+        return company_name, [], []
+
+    delimiter = ","
+    if "\t" in lines[0] and lines[0].count("\t") > lines[0].count(","):
+        delimiter = "\t"
+    elif ";" in lines[0] and lines[0].count(";") > lines[0].count(","):
+        delimiter = ";"
+
+    reader = list(csv.reader(io.StringIO(text), delimiter=delimiter))
+    rows = [[c.strip() for c in r] for r in reader if any(c.strip() for c in r)]
+    if not rows:
+        return company_name, [], []
+
+    # Check if first row is company name
+    if len(rows[0]) == 1 or (len(rows[0]) > 1 and not any(c.isdigit() for c in rows[0])):
+        first_cell = rows[0][0].strip()
+        if any(term in first_cell.lower() for term in ("ltd", "limited", "inc", "corp", "pvt", "company", "enterprises")):
+            company_name = first_cell
+            rows = rows[1:]
+
+    return _extract_from_table_rows(rows, company_name, filename)
+
+
+def _extract_general_excel_format(
+    wb: openpyxl.Workbook, sheet_names: list[str], filename: str
+) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+    company_name = re.sub(r"\.[^.]+$", "", filename).replace("_", " ").replace("-", " ").strip()
+    for s_name in sheet_names:
+        ws = wb[s_name]
+        max_r = min(ws.max_row, 200)
+        max_c = min(ws.max_column, 50)
+        if max_r < 2 or max_c < 2:
+            continue
+        rows = [
+            [_clean_str(ws.cell(r, c).value) for c in range(1, max_c + 1)]
+            for r in range(1, max_r + 1)
+        ]
+        rows = [r for r in rows if any(r)]
+        c_name, records, cashflows = _extract_from_table_rows(rows, company_name, filename)
+        if records:
+            return c_name, records, cashflows
+    return company_name, [], []
+
+
+def _extract_from_tabular_text(
+    text: str, filename: str
+) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+    company_name = re.sub(r"\.[^.]+$", "", filename).replace("_", " ").replace("-", " ").strip()
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if not lines:
+        return company_name, [], []
+    rows: list[list[str]] = []
+    for l in lines:
+        if "|" in l:
+            tokens = [t.strip() for t in l.split("|") if t.strip()]
+            if tokens:
+                rows.append(tokens)
+        elif "\t" in l:
+            tokens = [t.strip() for t in l.split("\t") if t.strip()]
+            if tokens:
+                rows.append(tokens)
+    if rows:
+        return _extract_from_table_rows(rows, company_name, filename)
+    return company_name, [], []
 
 
 def _extract_screener_format(
@@ -100,9 +365,9 @@ def _extract_screener_format(
     if "data sheet" in lower_sheets:
         ds = wb[lower_sheets["data sheet"]]
         for r in range(1, min(5, ds.max_row + 1)):
-            v = ds.cell(r, 2).value
-            if v and str(v).strip() and not str(v).strip().startswith("http"):
-                company_name = str(v).strip()
+            value = ds.cell(r, 2).value
+            if value and str(value).strip() and not str(value).strip().startswith("http"):
+                company_name = str(value).strip()
                 break
 
     inc_key = next((k for k in ("income_statement", "income statement", "profit & loss", "p&l") if k in lower_sheets), None)
@@ -110,127 +375,119 @@ def _extract_screener_format(
     cf_key = next((k for k in ("cash flow", "cash_flow", "cashflow") if k in lower_sheets), None)
     if not inc_key or not bs_key:
         return company_name, [], []
-
-    ws_inc = wb[lower_sheets[inc_key]]
-    ws_bs = wb[lower_sheets[bs_key]]
+    ws_inc, ws_bs = wb[lower_sheets[inc_key]], wb[lower_sheets[bs_key]]
     ws_cf = wb[lower_sheets[cf_key]] if cf_key else None
+    if not company_name and ws_inc.cell(1, 1).value:
+        company_name = str(ws_inc.cell(1, 1).value).strip()
 
-    # Find company name from Row 1 if not yet found
-    if not company_name:
-        v1 = ws_inc.cell(1, 1).value
-        if v1 and str(v1).strip():
-            company_name = str(v1).strip()
-
-    # Determine period columns from row 3
-    cols: list[tuple[int, str]] = []
+    cols = []
     for c in range(2, ws_inc.max_column + 1):
-        val = ws_inc.cell(3, c).value
-        if val is not None:
-            s = _clean_str(val)
-            if s and not any(k in s.lower() for k in ["trailing", "best case", "worst case"]):
-                cols.append((c, s))
-
+        raw_period = ws_inc.cell(3, c).value
+        if raw_period is not None:
+            period = _clean_str(raw_period)
+            if period and not any(x in period.lower() for x in ("trailing", "best case", "worst case")):
+                cols.append((c, period))
     if not cols:
         if "data sheet" in lower_sheets:
             return _extract_from_data_sheet(wb[lower_sheets["data sheet"]])
         return company_name, [], []
 
-    # Map row labels to column values
-    def map_sheet_rows(ws: Any) -> dict[str, dict[int, Any]]:
-        m: dict[str, dict[int, Any]] = {}
-        for r in range(1, ws.max_row + 1):
-            lbl = ws.cell(r, 1).value
-            if lbl:
-                clean_lbl = str(lbl).strip().lower()
-                m[clean_lbl] = {c: ws.cell(r, c).value for c, _ in cols}
-        return m
+    def map_rows(ws: Any | None) -> dict[str, dict[int, Any]]:
+        out: dict[str, dict[int, Any]] = {}
+        if ws is not None:
+            for r in range(1, ws.max_row + 1):
+                label = str(ws.cell(r, 1).value or "").strip().lower()
+                if label:
+                    out[label] = {c: ws.cell(r, c).value for c, _ in cols}
+        return out
 
-    inc_rows = map_sheet_rows(ws_inc)
-    bs_rows = map_sheet_rows(ws_bs)
-    cf_rows = map_sheet_rows(ws_cf) if ws_cf else {}
-
-    # Cash & bank from Data Sheet if available
-    cash_map: dict[int, float] = {}
+    inc_rows, bs_rows, cf_rows = map_rows(ws_inc), map_rows(ws_bs), map_rows(ws_cf)
+    ds_rows: dict[str, dict[int, Any]] = {}
     if "data sheet" in lower_sheets:
-        ws_ds = wb[lower_sheets["data sheet"]]
-        for r in range(1, ws_ds.max_row + 1):
-            lbl = str(ws_ds.cell(r, 1).value or "").strip().lower()
-            if lbl in ("cash & bank", "cash and bank", "cash"):
-                cash_map = {c: _to_float(ws_ds.cell(r, c).value) for c, _ in cols}
-                break
+        ds = wb[lower_sheets["data sheet"]]
+        for r in range(1, ds.max_row + 1):
+            label = str(ds.cell(r, 1).value or "").strip().lower()
+            if label:
+                ds_rows[label] = {c: ds.cell(r, c).value for c, _ in cols}
+
+    def val(rows: dict[str, dict[int, Any]], labels: tuple[str, ...], col: int) -> float | None:
+        for label in labels:
+            raw = rows.get(label, {}).get(col)
+            if raw is not None and str(raw).strip() != "":
+                return _to_float(raw)
+        return None
 
     records: list[dict[str, Any]] = []
     cashflows: list[dict[str, Any]] = []
+    for c, period in cols:
+        revenue = val(inc_rows, ("sales", "revenue", "turnover"), c) or 0.0
+        net_profit = val(inc_rows, ("net profit", "net income", "profit after tax", "pat"), c) or 0.0
+        expenses = val(inc_rows, ("operating expenses",), c)
+        operating_profit = val(inc_rows, ("operating profit", "operating income", "ebit"), c)
+        cogs = val(inc_rows, ("cogs", "cost of sales", "cost of goods sold", "cost of goods"), c)
+        interest = val(inc_rows, ("interest", "interest expense"), c)
 
-    for c, period_str in cols:
-        sales = _to_float(inc_rows.get("sales", {}).get(c))
-        expenses = _to_float(inc_rows.get("expenses", {}).get(c))
-        op_profit = _to_float(inc_rows.get("operating profit", {}).get(c))
-        net_profit = _to_float(inc_rows.get("net profit", {}).get(c))
-        interest = _to_float(inc_rows.get("interest", {}).get(c))
+        share_capital = val(bs_rows, ("equity share capital", "share capital"), c) or 0.0
+        reserves = val(bs_rows, ("reserves",), c) or 0.0
+        equity = val(bs_rows, ("total equity", "shareholders' equity", "net worth"), c)
+        if equity is None and (share_capital or reserves):
+            equity = share_capital + reserves
+        borrowings = val(bs_rows, ("borrowings", "total borrowings", "total debt", "interest-bearing debt"), c)
+        other_liabilities = val(bs_rows, ("other liabilities", "other liability"), c)
+        total_liabilities = val(bs_rows, ("total liabilities",), c)
+        assets = val(bs_rows, ("total assets", "balance sheet total", "total"), c)
+        # Some corporate exports report liabilities as the sum of Borrowings
+        # and Other Liabilities, without a row literally named "Total
+        # Liabilities". This is an exact, auditable line-item sum.
+        liabilities_formula = None
+        if total_liabilities is None and borrowings is not None and other_liabilities is not None:
+            total_liabilities = borrowings + other_liabilities
+            liabilities_formula = "Borrowings + Other Liabilities"
+        elif total_liabilities is None and assets is not None and equity is not None:
+            # Use the balance-sheet identity only when the workbook gives no
+            # liabilities total or its two liability components.
+            total_liabilities = assets - equity
+            liabilities_formula = "Total Assets - Shareholders' Equity"
 
-        eq_cap = _to_float(bs_rows.get("equity share capital", {}).get(c))
-        reserves = _to_float(bs_rows.get("reserves", {}).get(c))
-        total_equity = eq_cap + reserves
+        cash = val(ds_rows, ("cash & bank", "cash and bank", "cash"), c)
+        if cash is None:
+            cash = val(bs_rows, ("cash & bank", "cash and bank", "cash"), c)
+        receivables = val(bs_rows, ("receivables", "debtors", "trade receivables"), c)
+        inventory = val(bs_rows, ("inventory", "inventories"), c)
+        current_assets = val(bs_rows, ("total current assets", "current assets"), c)
+        current_liabilities = val(bs_rows, ("total current liabilities", "current liabilities"), c)
 
-        borrowings = _to_float(bs_rows.get("borrowings", {}).get(c))
-        other_liab = _to_float(bs_rows.get("other liabilities", {}).get(c))
-        total_liab = borrowings + other_liab
-        total_assets = _to_float(bs_rows.get("total", {}).get(c)) or (total_equity + total_liab)
+        cfo = val(cf_rows, ("cash from operating activity", "operating cash flow"), c)
+        cfi = val(cf_rows, ("cash from investing activity", "investing cash flow"), c)
+        cff = val(cf_rows, ("cash from financing activity", "financing cash flow"), c)
+        net_cf = val(cf_rows, ("net cash flow",), c)
+        if net_cf is None and all(x is not None for x in (cfo, cfi, cff)):
+            net_cf = sum(x or 0.0 for x in (cfo, cfi, cff))
 
-        debtors = _to_float(bs_rows.get("debtors", {}).get(c))
-        inventory = _to_float(bs_rows.get("inventory", {}).get(c))
-        cash_val = cash_map.get(c, 0.0)
-        if not cash_val and "cash" in bs_rows:
-            cash_val = _to_float(bs_rows["cash"].get(c))
-        other_assets = _to_float(bs_rows.get("other assets", {}).get(c))
-
-        total_cur_assets = debtors + inventory + cash_val + other_assets
-        total_cur_liab = other_liab if other_liab > 0 else (total_liab * 0.4)
-
-        cogs = max(0.0, sales - op_profit) if sales > 0 else expenses
-
-        op_cf = _to_float(cf_rows.get("cash from operating activity", {}).get(c))
-        inv_cf = _to_float(cf_rows.get("cash from investing activity", {}).get(c))
-        fin_cf = _to_float(cf_rows.get("cash from financing activity", {}).get(c))
-        net_cf = _to_float(cf_rows.get("net cash flow", {}).get(c))
-
-        rec = {
-            "period": period_str,
-            "revenue": sales,
-            "cogs": cogs,
-            "operating_expenses": expenses,
-            "net_income": net_profit,
-            "total_assets": total_assets,
-            "total_liabilities": total_liab,
-            "total_equity": total_equity,
-            "total_current_assets": total_cur_assets,
-            "total_current_liabilities": total_cur_liab,
-            "cash": cash_val,
-            "closing_cash": cash_val,
-            "accounts_receivable": debtors,
+        records.append({
+            "period": period, "revenue": revenue, "cogs": cogs,
+            "operating_expenses": expenses, "net_income": net_profit,
+            "total_assets": assets, "total_liabilities": total_liabilities,
+            "total_equity": equity, "total_current_assets": current_assets,
+            "total_current_liabilities": current_liabilities, "cash": cash,
+            "closing_cash": cash, "accounts_receivable": receivables,
             "inventory": inventory,
-            "other_current_assets": other_assets,
-            "short_term_debt": borrowings * 0.2,
-            "long_term_debt": borrowings * 0.8,
-            "interest_expense": interest,
-            "ebit": op_profit,
-            "operating_cash_flow": op_cf,
-            "investing_cash_flow": inv_cf,
-            "financing_cash_flow": fin_cf,
-            "notes": f"Extracted from Screener.in sheet for {company_name}",
-        }
-        records.append(rec)
-
-        if op_cf or inv_cf or fin_cf or net_cf:
+            "short_term_debt": None,
+            "long_term_debt": borrowings, "interest_expense": interest,
+            "ebit": operating_profit, "operating_cash_flow": cfo,
+            "investing_cash_flow": cfi, "financing_cash_flow": cff,
+            "net_cash_flow": net_cf,
+            "notes": (
+                f"Extracted from Screener.in sheet for {company_name}"
+                + (f"; total_liabilities calculated as {liabilities_formula}" if liabilities_formula else "")
+            ),
+        })
+        if any(x is not None for x in (cfo, cfi, cff, net_cf, cash)):
             cashflows.append({
-                "period": period_str,
-                "inflow": max(0.0, op_cf),
-                "outflow": abs(min(0.0, op_cf)) + abs(inv_cf),
-                "net": net_cf or (op_cf + inv_cf + fin_cf),
-                "closing_cash": cash_val,
+                "period": period, "inflow": max(0.0, cfo or 0.0),
+                "outflow": abs(min(0.0, cfo or 0.0)) + abs(min(0.0, cfi or 0.0)),
+                "net": net_cf, "closing_cash": cash or 0.0,
             })
-
     return company_name, records, cashflows
 
 
@@ -264,7 +521,10 @@ def _extract_from_data_sheet(
 
         if v and current_sec in sections:
             lbl_clean = v.lower()
-            if lbl_clean not in sections[current_sec]:
+            # Some statement exports contain a "Total" at the end of both
+            # sides of the balance sheet. Prefer the final total row, which
+            # is the total-assets side in this layout.
+            if lbl_clean not in sections[current_sec] or (current_sec == "bs" and lbl_clean == "total"):
                 sections[current_sec][lbl_clean] = r
 
     # Determine P&L period columns from the row with 'report date' in pnl section
@@ -291,15 +551,14 @@ def _extract_from_data_sheet(
 
     def get_row(sec_name: str, label_keywords: tuple[str, ...]) -> int | None:
         sec = sections.get(sec_name, {})
+        # Prefer exact line-item labels so "Other Current Assets" cannot be
+        # mistaken for the total "Current Assets" row.
+        for kw in label_keywords:
+            if kw in sec:
+                return sec[kw]
         for kw in label_keywords:
             for lbl, r_idx in sec.items():
-                if kw == lbl or lbl.startswith(kw) or f" {kw}" in lbl:
-                    return r_idx
-        # Fallback across entire sheet
-        for r_idx in range(1, ds.max_row + 1):
-            cell_txt = str(ds.cell(r_idx, 1).value or "").lower()
-            for kw in label_keywords:
-                if kw == cell_txt or cell_txt.startswith(kw):
+                if lbl.startswith(kw + " "):
                     return r_idx
         return None
 
@@ -312,9 +571,13 @@ def _extract_from_data_sheet(
 
     r_eq_cap = get_row("bs", ("equity share capital", "share capital", "equity capital"))
     r_reserves = get_row("bs", ("reserves",))
-    r_borrowings = get_row("bs", ("borrowings", "total debt", "debt"))
+    r_borrowings = get_row("bs", ("borrowings", "total borrowings", "loans", "total debt", "interest-bearing debt"))
     r_other_liab = get_row("bs", ("other liabilities",))
-    r_total_assets = get_row("bs", ("total", "total assets"))
+    r_total_assets = get_row("bs", ("total assets", "balance sheet total", "total"))
+    r_current_assets = get_row("bs", ("total current assets", "current assets"))
+    r_current_liabilities = get_row("bs", ("total current liabilities", "current liabilities"))
+    r_cogs = get_row("pnl", ("cost of sales", "cost of goods sold", "cogs"))
+    r_operating_profit = get_row("pnl", ("operating profit", "operating income", "ebit"))
     r_cash = get_row("bs", ("cash & bank", "cash and bank", "cash"))
     r_debtors = get_row("bs", ("receivables", "debtors", "trade receivables"))
     r_inventory = get_row("bs", ("inventory", "inventories"))
@@ -324,80 +587,126 @@ def _extract_from_data_sheet(
     r_cff = get_row("cf", ("cash from financing activity", "financing cash flow"))
     r_net_cf = get_row("cf", ("net cash flow",))
 
+    # Broad asset/liability categories do not establish working-capital totals.
+    has_reported_wc = bool(r_current_assets and r_current_liabilities)
+
     records: list[dict[str, Any]] = []
     cashflows: list[dict[str, Any]] = []
 
     for c, period_str in cols:
-        sales = _to_float(ds.cell(r_sales, c).value) if r_sales else 0.0
-        net_profit = _to_float(ds.cell(r_net_profit, c).value) if r_net_profit else 0.0
-        depr = _to_float(ds.cell(r_depr, c).value) if r_depr else 0.0
-        interest = _to_float(ds.cell(r_int, c).value) if r_int else 0.0
-        pbt = _to_float(ds.cell(r_pbt, c).value) if r_pbt else 0.0
-        tax = _to_float(ds.cell(r_tax, c).value) if r_tax else 0.0
+        def optional_cell(row: int | None) -> float | None:
+            if row is None:
+                return None
+            raw = ds.cell(row, c).value
+            return _to_float(raw) if raw is not None and str(raw).strip() else None
 
-        eq_cap = _to_float(ds.cell(r_eq_cap, c).value) if r_eq_cap else 0.0
-        reserves = _to_float(ds.cell(r_reserves, c).value) if r_reserves else 0.0
-        equity = eq_cap + reserves
+        sales = optional_cell(r_sales)
+        net_profit = optional_cell(r_net_profit)
+        interest = optional_cell(r_int)
+        eq_cap = optional_cell(r_eq_cap)
+        reserves = optional_cell(r_reserves)
+        equity = eq_cap + reserves if eq_cap is not None and reserves is not None else None
+        borrowings = optional_cell(r_borrowings)
+        other_liab = optional_cell(r_other_liab)
+        total_assets = optional_cell(r_total_assets)
+        cash = optional_cell(r_cash)
+        debtors = optional_cell(r_debtors)
+        inv_val = optional_cell(r_inventory)
 
-        borrowings = _to_float(ds.cell(r_borrowings, c).value) if r_borrowings else 0.0
-        other_liab = _to_float(ds.cell(r_other_liab, c).value) if r_other_liab else 0.0
-        total_assets = _to_float(ds.cell(r_total_assets, c).value) if r_total_assets else (equity + borrowings + other_liab)
-        cash = _to_float(ds.cell(r_cash, c).value) if r_cash else 0.0
-        debtors = _to_float(ds.cell(r_debtors, c).value) if r_debtors else 0.0
-        inv_val = _to_float(ds.cell(r_inventory, c).value) if r_inventory else 0.0
+        cfo = optional_cell(r_cfo)
+        cfi = optional_cell(r_cfi)
+        cff = optional_cell(r_cff)
+        components = (cfo, cfi, cff)
+        net_cf = optional_cell(r_net_cf) if r_net_cf else (sum(x for x in components if x is not None) if all(x is not None for x in components) else None)
 
-        cfo = _to_float(ds.cell(r_cfo, c).value) if r_cfo else 0.0
-        cfi = _to_float(ds.cell(r_cfi, c).value) if r_cfi else 0.0
-        cff = _to_float(ds.cell(r_cff, c).value) if r_cff else 0.0
-        net_cf = _to_float(ds.cell(r_net_cf, c).value) if r_net_cf else (cfo + cfi + cff)
+        def source_ref(row: int | None) -> str:
+            if row is None:
+                return "not reported"
+            return f"Data Sheet!{openpyxl.utils.get_column_letter(c)}{row}"
 
-        # Estimate expenses and COGS accurately
-        ebit = pbt + interest if pbt else (net_profit + tax + interest if net_profit else sales * 0.15)
-        operating_profit = ebit + depr
-        cogs = max(0.0, sales - operating_profit) if sales > operating_profit else sales * 0.65
-        operating_expenses = max(0.0, sales - cogs - net_profit) if sales > 0 else 0.0
+        source_refs = {
+            "revenue": source_ref(r_sales),
+            "net_income": source_ref(r_net_profit),
+            "total_assets": source_ref(r_total_assets),
+            "total_liabilities": (
+                f"{source_ref(r_borrowings)} + {source_ref(r_other_liab)}"
+                if r_borrowings is not None and r_other_liab is not None
+                else "not reported as a total"
+            ),
+            "total_equity": (
+                f"{source_ref(r_eq_cap)} + {source_ref(r_reserves)}"
+                if r_eq_cap is not None and r_reserves is not None
+                else "not reported as a total"
+            ),
+            "borrowings": source_ref(r_borrowings),
+            "cash": source_ref(r_cash),
+            "inventory": source_ref(r_inventory),
+            "total_current_assets": source_ref(r_current_assets),
+            "total_current_liabilities": source_ref(r_current_liabilities),
+            "cogs": source_ref(r_cogs),
+            "operating_profit": source_ref(r_operating_profit),
+            "operating_cash_flow": source_ref(r_cfo),
+            "investing_cash_flow": source_ref(r_cfi),
+            "financing_cash_flow": source_ref(r_cff),
+            "net_cash_flow": source_ref(r_net_cf),
+        }
 
-        total_cur_assets = debtors + inv_val + cash
-        total_cur_liab = other_liab if other_liab > 0 else (borrowings * 0.3)
+        # Never infer operating profit or cost of sales from unrelated totals.
+        ebit = optional_cell(r_operating_profit)
+        cogs = optional_cell(r_cogs)
+        operating_expenses = None
+
+        # Check if balance sheet has reported working capital components (banks report total assets/liabilities without breakdown)
+        if not has_reported_wc:
+            total_cur_assets = None
+            total_cur_liab = None
+        else:
+            total_cur_assets = _to_float(ds.cell(r_current_assets, c).value) if r_current_assets and ds.cell(r_current_assets, c).value is not None else None
+            total_cur_liab = _to_float(ds.cell(r_current_liabilities, c).value) if r_current_liabilities and ds.cell(r_current_liabilities, c).value is not None else None
 
         records.append({
             "period": period_str,
             "revenue": sales,
-            "cogs": round(cogs, 2),
-            "operating_expenses": round(operating_expenses, 2),
+            "cogs": cogs,
+            "operating_expenses": operating_expenses,
             "net_income": net_profit,
             "total_assets": total_assets,
-            "total_liabilities": borrowings + other_liab,
+            "total_liabilities": other_liab + borrowings if other_liab is not None and borrowings is not None else None,
             "total_equity": equity,
-            "total_current_assets": round(total_cur_assets, 2) if total_cur_assets else round(total_assets * 0.25, 2),
-            "total_current_liabilities": round(total_cur_liab, 2),
+            "total_current_assets": total_cur_assets,
+            "total_current_liabilities": total_cur_liab,
             "cash": cash,
             "closing_cash": cash,
             "accounts_receivable": debtors,
             "inventory": inv_val,
-            "short_term_debt": round(borrowings * 0.25, 2),
-            "long_term_debt": round(borrowings * 0.75, 2),
+            "short_term_debt": None,
+            "long_term_debt": borrowings,
             "interest_expense": interest,
             "ebit": ebit,
             "operating_cash_flow": cfo,
             "investing_cash_flow": cfi,
             "financing_cash_flow": cff,
-            "notes": f"Extracted from corporate filing for {company_name or 'the uploaded document'}",
+            "net_cash_flow": net_cf,
+            "notes": (
+                f"Extracted from corporate filing for {company_name or 'the uploaded document'}; "
+                f"source_refs={json.dumps(source_refs, ensure_ascii=False, sort_keys=True)}"
+            ),
         })
 
-        cashflows.append({
-            "period": period_str,
-            "opening_cash": cash,
-            "operating_inflow": max(0.0, cfo) if cfo else sales,
-            "operating_outflow": abs(min(0.0, cfo)) if cfo < 0 else max(0.0, sales - cfo),
-            "investing_inflow": max(0.0, cfi),
-            "investing_outflow": abs(cfi) if cfi < 0 else 0.0,
-            "financing_inflow": max(0.0, cff),
-            "financing_outflow": abs(cff) if cff < 0 else 0.0,
-            "closing_cash": cash,
-            "net": net_cf,
-            "notes": f"Operating Cash Flow: ₹{cfo:,.2f} Cr",
-        })
+        if any(value is not None for value in (cfo, cfi, cff, net_cf, cash)):
+            cashflows.append({
+                "period": period_str,
+                "opening_cash": None,
+                "operating_inflow": max(0.0, cfo) if cfo is not None else None,
+                "operating_outflow": abs(min(0.0, cfo)) if cfo is not None else None,
+                "investing_inflow": max(0.0, cfi) if cfi is not None else None,
+                "investing_outflow": abs(cfi) if cfi is not None and cfi < 0 else (0.0 if cfi is not None else None),
+                "financing_inflow": max(0.0, cff) if cff is not None else None,
+                "financing_outflow": abs(cff) if cff is not None and cff < 0 else (0.0 if cff is not None else None),
+                "closing_cash": cash,
+                "net": net_cf,
+                "notes": "Cash flow values extracted from reported statement rows.",
+            })
 
     return company_name, records, cashflows
 
@@ -427,8 +736,9 @@ def _extract_synthetic_format(
     if ws_bs:
         for r in range(1, ws_bs.max_row + 1):
             acct = str(ws_bs.cell(r, 2).value or "").strip()
-            amt = _to_float(ws_bs.cell(r, 3).value)
-            if acct:
+            raw_amount = ws_bs.cell(r, 3).value
+            amt = _to_float(raw_amount) if raw_amount is not None else None
+            if acct and amt is not None:
                 bs_data[acct] = amt
 
     # Cash flow lookup by FY
@@ -457,28 +767,26 @@ def _extract_synthetic_format(
         cogs = _to_float(ws_pnl.cell(r, 3).value)
         gp = _to_float(ws_pnl.cell(r, 4).value)
         opex = _to_float(ws_pnl.cell(r, 5).value)
-        net_inc = _to_float(ws_pnl.cell(r, 6).value)
+        net_inc = _to_float(ws_pnl.cell(r, 6).value) if ws_pnl.cell(r, 6).value is not None else None
 
-        cash = bs_data.get("Cash and Cash Equivalents", 2350000.0)
-        ar = bs_data.get("Trade Receivables (illustrative closing)", 661953.0)
-        inv = bs_data.get("Inventory (illustrative closing)", 1537785.0)
-        ppe = bs_data.get("Property, Plant & Equipment (net)", 3864000.0)
-        oca = bs_data.get("Other Current Assets", 340000.0)
-        ap = bs_data.get("Trade Payables (illustrative closing)", 361896.0)
-        loans = bs_data.get("Outstanding Loans", 2810000.0)
-        accrued = bs_data.get("Accrued Expenses", 275000.0)
-        share_cap = bs_data.get("Share Capital", 4000000.0)
-        retained = bs_data.get("Retained Earnings (balancing illustrative figure)", 1306842.0)
+        cash = bs_data.get("Cash and Cash Equivalents")
+        ar = bs_data.get("Trade Receivables (illustrative closing)")
+        inv = bs_data.get("Inventory (illustrative closing)")
+        ppe = bs_data.get("Property, Plant & Equipment (net)")
+        oca = bs_data.get("Other Current Assets")
+        ap = bs_data.get("Trade Payables (illustrative closing)")
+        loans = bs_data.get("Outstanding Loans")
+        accrued = bs_data.get("Accrued Expenses")
 
-        cur_assets = cash + ar + inv + oca
-        cur_liab = ap + accrued
-        tot_assets = cur_assets + ppe
-        tot_liab = loans + cur_liab
-        tot_eq = share_cap + retained
+        cur_assets = None
+        cur_liab = None
+        tot_assets = bs_data.get("Total Assets")
+        tot_liab = bs_data.get("Total Liabilities")
+        tot_eq = bs_data.get("Total Equity")
 
         cf_entry = cf_data.get(period, {})
         closing_c = cf_entry.get("closing_cash", cash)
-        op_cf = cf_entry.get("net_op_cash", rev - cogs - opex)
+        op_cf = cf_entry.get("net_op_cash")
 
         rec = {
             "period": period,
@@ -496,24 +804,25 @@ def _extract_synthetic_format(
             "accounts_receivable": ar,
             "inventory": inv,
             "other_current_assets": oca,
-            "short_term_debt": loans * 0.2,
-            "long_term_debt": loans * 0.8,
-            "interest_expense": 250000.0,
-            "ebit": gp - opex,
+            "short_term_debt": None,
+            "long_term_debt": loans,
+            "interest_expense": None,
+            "ebit": None,
             "operating_cash_flow": op_cf,
-            "investing_cash_flow": -500000.0,
-            "financing_cash_flow": -300000.0,
+            "investing_cash_flow": None,
+            "financing_cash_flow": None,
             "notes": f"Extracted from ERP dataset for {company_name or 'the uploaded document'}",
         }
         records.append(rec)
 
-        cashflows.append({
-            "period": period,
-            "inflow": cf_entry.get("collections", rev),
-            "outflow": cf_entry.get("supplier_pmt", cogs) + cf_entry.get("operating_pmt", opex),
-            "net": op_cf,
-            "closing_cash": closing_c,
-        })
+        if cf_entry:
+            cashflows.append({
+                "period": period,
+                "inflow": cf_entry.get("collections"),
+                "outflow": (cf_entry.get("supplier_pmt") or 0.0) + (cf_entry.get("operating_pmt") or 0.0),
+                "net": op_cf,
+                "closing_cash": closing_c,
+            })
 
     return company_name, records, cashflows
 
@@ -549,45 +858,50 @@ def _extract_three_statement_format(
         if lbl:
             inc_rows[lbl] = {c: _to_float(ws_inc.cell(r, c).value) for c, _ in cols}
 
-    bs_rows: dict[str, float] = {}
+    bs_rows: dict[str, float | None] = {}
     for r in range(1, ws_bs.max_row + 1):
         lbl = str(ws_bs.cell(r, 1).value or "").strip().lower()
-        val = _to_float(ws_bs.cell(r, 2).value)
+        raw_value = ws_bs.cell(r, 2).value
+        val = _to_float(raw_value) if raw_value is not None else None
         if lbl:
             bs_rows[lbl] = val
 
-    cash = bs_rows.get("cash and cash equivalents", 62000.0)
-    ar = bs_rows.get("accounts receivable", 24000.0)
-    inv = bs_rows.get("merchandise inventory", 11000.0)
-    cur_assets = bs_rows.get("total current assets", cash + ar + inv)
-    tot_assets = bs_rows.get("total corporate assets", 280000.0)
-    cur_liab = bs_rows.get("current liabilities", 30000.0)
-    tot_liab = bs_rows.get("total liabilities", 80000.0)
-    tot_eq = tot_assets - tot_liab
+    cash = bs_rows.get("cash and cash equivalents")
+    ar = bs_rows.get("accounts receivable")
+    inv = bs_rows.get("merchandise inventory")
+    cur_assets = bs_rows.get("total current assets")
+    tot_assets = bs_rows.get("total assets", bs_rows.get("total corporate assets"))
+    cur_liab = bs_rows.get("total current liabilities", bs_rows.get("current liabilities"))
+    tot_liab = bs_rows.get("total liabilities")
+    tot_eq = bs_rows.get("total equity")
 
     records: list[dict[str, Any]] = []
     cashflows: list[dict[str, Any]] = []
 
     for c, period in cols:
-        rev = 0.0
+        rev = None
         for k, vmap in inc_rows.items():
             if any(term in k for term in ["revenue", "sales", "gross revenue"]):
-                rev = vmap.get(c, 0.0)
+                rev = vmap.get(c)
                 break
 
-        cogs = 0.0
+        cogs = None
         for k, vmap in inc_rows.items():
             if "cogs" in k or "cost of goods" in k:
-                cogs = vmap.get(c, 0.0)
+                cogs = vmap.get(c)
                 break
 
-        opex = 0.0
+        opex = None
         for k, vmap in inc_rows.items():
             if "operating expenses" in k:
-                opex = vmap.get(c, 0.0)
+                opex = vmap.get(c)
                 break
 
-        net_inc = rev - cogs - opex
+        net_inc = None
+        for k, vmap in inc_rows.items():
+            if any(term in k for term in ("net profit", "net income", "profit after tax", "pat")):
+                net_inc = vmap.get(c)
+                break
 
         records.append({
             "period": period,
@@ -604,13 +918,13 @@ def _extract_three_statement_format(
             "closing_cash": cash,
             "accounts_receivable": ar,
             "inventory": inv,
-            "short_term_debt": cur_liab * 0.5,
-            "long_term_debt": (tot_liab - cur_liab),
-            "interest_expense": 5000.0,
-            "ebit": rev - cogs - opex,
-            "operating_cash_flow": net_inc * 1.1,
-            "investing_cash_flow": -10000.0,
-            "financing_cash_flow": -5000.0,
+            "short_term_debt": None,
+        "long_term_debt": bs_rows.get("borrowings", bs_rows.get("total debt")),
+            "interest_expense": None,
+            "ebit": None,
+            "operating_cash_flow": None,
+            "investing_cash_flow": None,
+            "financing_cash_flow": None,
             "notes": f"Extracted from 3-statement model for {company_name}",
         })
 

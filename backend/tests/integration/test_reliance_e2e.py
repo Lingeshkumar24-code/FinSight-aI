@@ -58,13 +58,16 @@ def test_reliance_upload_updates_dashboard_and_agentic_rag(client: TestClient):
     assert "return_on_equity_pct" in ratios
     assert "debt_to_assets" in ratios
 
-    # Current ratio ~ 1.08, Quick ratio ~ 0.89, Debt/Equity ~ 1.41, Gross margin ~ 17%, ROE ~ 8.9%, Debt/Assets ~ 0.58
-    assert 0.9 <= ratios["current_ratio"] <= 1.3
-    assert 0.7 <= ratios["quick_ratio"] <= 1.1
-    assert 1.1 <= ratios["debt_to_equity"] <= 1.7
-    assert 14.0 <= ratios["gross_margin_pct"] <= 20.0
+    # The workbook reports working capital components, but not the current
+    # asset/current liability totals or COGS needed for these ratios.
+    assert ratios["current_ratio"] is None
+    assert ratios["quick_ratio"] is None
+    assert 0.35 <= ratios["debt_to_equity"] <= 0.60
+    assert 1.1 <= ratios["total_liabilities_to_equity"] <= 1.6
+    assert ratios["gross_margin_pct"] is None
     assert 7.0 <= ratios["return_on_equity_pct"] <= 12.0
-    assert 0.50 <= ratios["debt_to_assets"] <= 0.65
+    assert 15.0 <= ratios["debt_to_assets"] <= 25.0
+    assert 50.0 <= ratios["total_liabilities_to_assets"] <= 65.0
 
     # 3. Test Agentic RAG Q&A via AI Advisor
     # Query 1: Executive Summary

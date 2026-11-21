@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -77,6 +78,75 @@ def _extract_pdf(raw: bytes) -> ExtractedDocument:
         raise _failure("Failed to parse PDF document", exc) from exc
 
 
+def _resolve_excel_cell(
+    values_book: Any,
+    formula_book: Any,
+    sheet_name: str,
+    row_idx: int,
+    col_idx: int,
+    raw_val: Any,
+    formula_val: Any,
+) -> Any:
+    """Resolve cross-sheet and formula references when Excel was saved without precomputed formula caches."""
+    if raw_val is not None and str(raw_val).strip() != "":
+        return raw_val
+    if not isinstance(formula_val, str) or not formula_val.startswith("="):
+        return raw_val
+
+    f = formula_val[1:].strip()
+    # Direct cross-sheet reference: 'Sheet Name'!A1 or SheetName!A1
+    m = re.match(r"^'([^']+)'!([A-Za-z]+[0-9]+)$", f) or re.match(r"^([A-Za-z0-9_]+)!([A-Za-z]+[0-9]+)$", f)
+    if m:
+        target_sheet, coord = m.group(1), m.group(2)
+        if target_sheet in values_book.sheetnames:
+            try:
+                target_val = values_book[target_sheet][coord].value
+                if target_val is not None and str(target_val).strip() != "":
+                    return target_val
+                # If target cell also references another sheet, resolve one level deep
+                target_form = formula_book[target_sheet][coord].value
+                if isinstance(target_form, str) and target_form.startswith("="):
+                    m2 = re.match(r"^'([^']+)'!([A-Za-z]+[0-9]+)$", target_form[1:].strip()) or re.match(
+                        r"^([A-Za-z0-9_]+)!([A-Za-z]+[0-9]+)$", target_form[1:].strip()
+                    )
+                    if m2 and m2.group(1) in values_book.sheetnames:
+                        return values_book[m2.group(1)][m2.group(2)].value
+            except Exception:
+                pass
+
+    # Direct local cell reference: A1
+    m_local = re.match(r"^([A-Za-z]+[0-9]+)$", f)
+    if m_local:
+        coord = m_local.group(1)
+        try:
+            target_val = values_book[sheet_name][coord].value
+            if target_val is not None and str(target_val).strip() != "":
+                return target_val
+        except Exception:
+            pass
+
+    # Simple binary arithmetic: =A1-B1 or =A1+B1
+    m_arith = re.match(r"^([A-Za-z]+[0-9]+)\s*([+-])\s*([A-Za-z]+[0-9]+)$", f)
+    if m_arith:
+        c1, op, c2 = m_arith.group(1), m_arith.group(2), m_arith.group(3)
+        try:
+            cell1 = values_book[sheet_name][c1]
+            cell2 = values_book[sheet_name][c2]
+            v1 = _resolve_excel_cell(
+                values_book, formula_book, sheet_name, cell1.row, cell1.column, cell1.value, formula_book[sheet_name][c1].value
+            )
+            v2 = _resolve_excel_cell(
+                values_book, formula_book, sheet_name, cell2.row, cell2.column, cell2.value, formula_book[sheet_name][c2].value
+            )
+            v1_f = float(v1) if v1 is not None else 0.0
+            v2_f = float(v2) if v2 is not None else 0.0
+            return (v1_f + v2_f) if op == "+" else (v1_f - v2_f)
+        except Exception:
+            pass
+
+    return raw_val
+
+
 def _extract_excel(raw: bytes, suffix: str) -> ExtractedDocument:
     try:
         if suffix == ".xls":
@@ -98,8 +168,8 @@ def _extract_excel(raw: bytes, suffix: str) -> ExtractedDocument:
 
         # Load both representations: displayed values are useful evidence,
         # while formulas must remain visible instead of disappearing.
-        values_book = openpyxl.load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
-        formula_book = openpyxl.load_workbook(io.BytesIO(raw), data_only=False, read_only=True)
+        values_book = openpyxl.load_workbook(io.BytesIO(raw), data_only=True)
+        formula_book = openpyxl.load_workbook(io.BytesIO(raw), data_only=False)
         sections = []
         for sheet_name in values_book.sheetnames:
             values_sheet = values_book[sheet_name]
@@ -109,8 +179,11 @@ def _extract_excel(raw: bytes, suffix: str) -> ExtractedDocument:
                 zip(values_sheet.iter_rows(), formula_sheet.iter_rows()), start=1
             ):
                 cells: list[str] = []
-                for value_cell, formula_cell in zip(value_row, formula_row):
-                    value = _cell(value_cell.value)
+                for col_idx, (value_cell, formula_cell) in enumerate(zip(value_row, formula_row), start=1):
+                    resolved_raw = _resolve_excel_cell(
+                        values_book, formula_book, sheet_name, row_number, col_idx, value_cell.value, formula_cell.value
+                    )
+                    value = _cell(resolved_raw)
                     formula = _cell(formula_cell.value)
                     if isinstance(formula, str) and formula.startswith("=") and formula != value:
                         cells.append(f"{value} (formula: {formula})" if value else f"formula: {formula}")

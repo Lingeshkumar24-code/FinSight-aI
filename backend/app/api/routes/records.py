@@ -115,46 +115,38 @@ async def dashboard_summary(
         return {"available": False, "message": "No financial records submitted yet.", "periods": []}
 
     latest = rows[-1]
-    cash = float(latest.cash or 0.0)
-    current_assets = float(latest.total_current_assets or 0.0)
-    current_liabilities = float(latest.total_current_liabilities or 0.0)
-    cash_series = [float(r.closing_cash or r.cash or 0.0) for r in rows]
-    for i in range(1, 7):
-        if len(cash_series) > 1:
-            avg_delta = (cash_series[-1] - cash_series[-2]) / 1.0
-            cash_series.append(round(cash_series[-1] + avg_delta, 2))
-        else:
-            cash_series.append(cash_series[-1])
+    latest_borrowings = (
+        float((latest.short_term_debt or 0.0) + (latest.long_term_debt or 0.0))
+        if (latest.short_term_debt is not None or latest.long_term_debt is not None)
+        else None
+    )
+    cash_series = [float(r.closing_cash if r.closing_cash is not None else r.cash) for r in rows if r.closing_cash is not None or r.cash is not None]
+    cash_series_periods = [r.period for r in rows if r.closing_cash is not None or r.cash is not None]
 
     bs = BalanceSheet(
-        cash=cash,
-        accounts_receivable=float(latest.accounts_receivable or 0.0),
-        inventory=float(latest.inventory or 0.0),
-        other_current_assets=float(latest.other_current_assets or 0.0),
-        total_current_assets=current_assets,
-        total_assets=float(latest.total_assets),
-        total_current_liabilities=current_liabilities,
-        total_liabilities=float(latest.total_liabilities),
-        total_equity=float(latest.total_equity),
+        cash=float(latest.cash) if latest.cash is not None else None,
+        accounts_receivable=float(latest.accounts_receivable) if latest.accounts_receivable is not None else None,
+        inventory=float(latest.inventory) if latest.inventory is not None else None,
+        other_current_assets=float(latest.other_current_assets) if latest.other_current_assets is not None else None,
+        total_current_assets=float(latest.total_current_assets) if latest.total_current_assets is not None else None,
+        total_assets=float(latest.total_assets or 0.0),
+        total_current_liabilities=float(latest.total_current_liabilities) if latest.total_current_liabilities is not None else None,
+        total_liabilities=float(latest.total_liabilities) if latest.total_liabilities is not None else 0.0,
+        total_equity=float(latest.total_equity) if latest.total_equity is not None else 0.0,
+        borrowings=latest_borrowings,
     )
     inc = IncomeStatement(
-        revenue=float(latest.revenue),
-        cogs=float(latest.cogs),
-        operating_expenses=float(latest.operating_expenses),
-        net_income=float(latest.net_income),
+        revenue=float(latest.revenue or 0.0),
+        cogs=float(latest.cogs) if (latest.cogs is not None and latest.cogs > 0) else None,
+        operating_expenses=float(latest.operating_expenses or 0.0),
+        net_income=float(latest.net_income or 0.0),
+        operating_profit=float(latest.ebit) if latest.ebit is not None else None,
     )
     ratios = FinancialStatementEngine().compute(bs, inc)
     by_name = {r.name: r.value for r in ratios}
 
-    burn = None
-    if len(cash_series) > 1:
-        recent = cash_series[-6:-1] if len(cash_series) >= 6 else cash_series[:-1]
-        deltas = [recent[i] - recent[i - 1] for i in range(1, len(recent))]
-        if deltas:
-            average_delta = sum(deltas) / len(deltas)
-            if average_delta < 0:
-                burn = abs(average_delta)
-    runway = (cash / burn) if burn and burn > 0 else None
+    # Annual cash-balance changes are not a monthly operating-burn measure.
+    runway = None
 
     risk = RiskDetectionEngine().evaluate(
         RiskInputs(
@@ -178,25 +170,29 @@ async def dashboard_summary(
     all_period_ratios: dict[str, list[dict]] = {}
     ratio_series_map: dict[str, list[float]] = {}
     for r in rows:
-        r_cash = float(r.cash or 0.0)
-        r_ca = float(r.total_current_assets or 0.0)
-        r_cl = float(r.total_current_liabilities or 0.0)
+        r_borrowings = (
+            float((r.short_term_debt or 0.0) + (r.long_term_debt or 0.0))
+            if (r.short_term_debt is not None or r.long_term_debt is not None)
+            else None
+        )
         r_bs = BalanceSheet(
-            cash=r_cash,
-            accounts_receivable=float(r.accounts_receivable or 0.0),
-            inventory=float(r.inventory or 0.0),
-            other_current_assets=float(r.other_current_assets or 0.0),
-            total_current_assets=r_ca,
-            total_assets=float(r.total_assets),
-            total_current_liabilities=r_cl,
-            total_liabilities=float(r.total_liabilities),
-            total_equity=float(r.total_equity),
+            cash=float(r.cash) if r.cash is not None else None,
+            accounts_receivable=float(r.accounts_receivable) if r.accounts_receivable is not None else None,
+            inventory=float(r.inventory) if r.inventory is not None else None,
+            other_current_assets=float(r.other_current_assets) if r.other_current_assets is not None else None,
+            total_current_assets=float(r.total_current_assets) if r.total_current_assets is not None else None,
+            total_assets=float(r.total_assets or 0.0),
+            total_current_liabilities=float(r.total_current_liabilities) if r.total_current_liabilities is not None else None,
+        total_liabilities=float(r.total_liabilities) if r.total_liabilities is not None else 0.0,
+        total_equity=float(r.total_equity) if r.total_equity is not None else 0.0,
+            borrowings=r_borrowings,
         )
         r_inc = IncomeStatement(
-            revenue=float(r.revenue),
-            cogs=float(r.cogs),
-            operating_expenses=float(r.operating_expenses),
-            net_income=float(r.net_income),
+            revenue=float(r.revenue or 0.0),
+            cogs=float(r.cogs) if (r.cogs is not None and r.cogs > 0) else None,
+            operating_expenses=float(r.operating_expenses or 0.0),
+            net_income=float(r.net_income or 0.0),
+            operating_profit=float(r.ebit) if r.ebit is not None else None,
         )
         computed = FinancialStatementEngine().compute(r_bs, r_inc)
         all_period_ratios[r.period] = [c.__dict__ for c in computed]
@@ -222,6 +218,7 @@ async def dashboard_summary(
             "flags": [f.__dict__ | {"level": f.level.value} for f in risk.flags],
         },
         "cash_series": cash_series,
+        "cash_series_periods": cash_series_periods,
         "cash_runway_months": runway,
         "cashflow_records": [as_dict(r) for r in cash_rows],
         "profit_margin_pct": by_name.get("net_margin_pct"),

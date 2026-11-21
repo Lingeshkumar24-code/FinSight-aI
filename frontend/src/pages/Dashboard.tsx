@@ -5,17 +5,14 @@ import { Card } from "../components/ui/Card";
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 function inr(value: number | null | undefined, isCrores = false): string {
-  if (value == null) return "—";
+  if (value === null || value === undefined) return "—";
   const formatted = Number(value).toLocaleString("en-IN", { maximumFractionDigits: 0 });
   return isCrores ? `₹${formatted} Cr` : `₹${formatted}`;
 }
 
 function fmtRatio(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
-  const rounded = Math.round(value * 1000) / 1000;
-  return Number.isInteger(rounded)
-    ? `${rounded}`
-    : rounded.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+  return value.toFixed(2);
 }
 
 function fmtPct(value: number | null | undefined): string {
@@ -66,9 +63,9 @@ export function LineChart({
   const gradientId = useRef(`chart-grad-${Math.random().toString(36).substring(2, 9)}`).current;
   if (!data.length) return null;
 
-  const actual = projectedFrom != null ? data.slice(0, projectedFrom + 1) : data;
+  const actual = projectedFrom !== null && projectedFrom !== undefined ? data.slice(0, projectedFrom + 1) : data;
   const projected =
-    projectedFrom != null && projectedFrom < data.length - 1
+    projectedFrom !== null && projectedFrom !== undefined && projectedFrom < data.length - 1
       ? data.slice(projectedFrom)
       : [];
 
@@ -389,7 +386,7 @@ function FinancialSubmitForm({ onSuccess }: { onSuccess: () => void }) {
 // ── Cash runway badge ─────────────────────────────────────────────────────────
 
 function RunwayBadge({ months }: { months: number | null | undefined }) {
-  if (months == null) return <span style={{ color: "#9CA3AF" }}>N/A</span>;
+  if (months === null || months === undefined) return <span style={{ color: "#9CA3AF" }}>N/A</span>;
   const color = months > 12 ? "#059669" : months >= 6 ? "#D97706" : "#DC2626";
   const bg = months > 12 ? "#ECFDF5" : months >= 6 ? "#FFFBEB" : "#FEF2F2";
   const border = months > 12 ? "#6EE7B7" : months >= 6 ? "#FDE68A" : "#FECACA";
@@ -506,7 +503,9 @@ export function Dashboard() {
   const byName = Object.fromEntries(allRatios.map((ratio) => [ratio.name, ratio]));
   const activeWatchCount = summary.risk?.flags.filter((flag) => flag.level !== "low").length ?? 0;
   const cashSeries = summary.cash_series ?? [];
-  const cashDisplay = cashSeries.slice(0, 6);
+  const cashPeriods = summary.cash_series_periods ?? summary.periods ?? [];
+  const selectedIndex = selectedPeriod === "all" ? cashSeries.length - 1 : cashPeriods.indexOf(selectedPeriod);
+  const cashDisplay = cashSeries.slice(0, Math.max(0, selectedIndex + 1)).slice(-6);
 
   const netMargin = periodRecord
     ? Number(periodRecord.revenue) > 0
@@ -525,18 +524,20 @@ export function Dashboard() {
   const isDemo = summary.data_label === "DEMO DATA";
   const isVerified = summary.verified === true;
   const isCrores = Boolean(
-    summary.company_name?.toLowerCase().includes("reliance") ||
-    summary.company_name?.toLowerCase().includes("state bank") ||
-    summary.company_name?.toLowerCase().includes("sbi") ||
-    (periodRecord && Number(periodRecord.revenue) > 10000 && Number(periodRecord.total_assets) > 50000)
+    (periodRecord && (Number(periodRecord.revenue) > 500 || Number(periodRecord.total_assets) > 1000)) ||
+    (summary.records && summary.records.some(r => Number(r.revenue) > 500 || Number(r.total_assets) > 1000))
   );
 
   // Cash runway months
   const runwayMonths = summary.cash_runway_months ?? null;
 
   // Cash series month labels
-  const monthNames = ["M1", "M2", "M3", "M4", "M5", "M6"];
-  const cashLabels = cashDisplay.map((_, i) => monthNames[i] ?? `M${i + 1}`);
+  const cashLabels = cashPeriods
+    ? cashPeriods.slice(0, Math.max(0, selectedIndex + 1)).slice(-6).map(p => {
+        const clean = p.split("-")[0];
+        return clean.length === 4 ? `FY${clean.slice(2)}` : p;
+      })
+    : cashDisplay.map((_, i) => `P${i + 1}`);
 
   const metricCards = [
     {
@@ -546,7 +547,7 @@ export function Dashboard() {
       series:
         summary.ratio_series?.["current_ratio"] && summary.ratio_series["current_ratio"].length > 1
           ? summary.ratio_series["current_ratio"]
-          : byName["current_ratio"]?.value != null
+          : byName["current_ratio"]?.value !== null && byName["current_ratio"]?.value !== undefined
           ? [byName["current_ratio"].value]
           : [],
       unit: "x",
@@ -558,7 +559,7 @@ export function Dashboard() {
       series:
         summary.ratio_series?.["quick_ratio"] && summary.ratio_series["quick_ratio"].length > 1
           ? summary.ratio_series["quick_ratio"]
-          : byName["quick_ratio"]?.value != null
+          : byName["quick_ratio"]?.value !== null && byName["quick_ratio"]?.value !== undefined
           ? [byName["quick_ratio"].value]
           : [],
       unit: "x",
@@ -570,7 +571,7 @@ export function Dashboard() {
       series:
         summary.ratio_series?.["debt_to_equity"] && summary.ratio_series["debt_to_equity"].length > 1
           ? summary.ratio_series["debt_to_equity"]
-          : byName["debt_to_equity"]?.value != null
+          : byName["debt_to_equity"]?.value !== null && byName["debt_to_equity"]?.value !== undefined
           ? [byName["debt_to_equity"].value]
           : [],
       unit: "x",
@@ -582,7 +583,7 @@ export function Dashboard() {
       series:
         summary.ratio_series?.["gross_margin_pct"] && summary.ratio_series["gross_margin_pct"].length > 1
           ? summary.ratio_series["gross_margin_pct"]
-          : byName["gross_margin_pct"]?.value != null
+          : byName["gross_margin_pct"]?.value !== null && byName["gross_margin_pct"]?.value !== undefined
           ? [byName["gross_margin_pct"].value]
           : [],
       unit: "%",
@@ -594,7 +595,7 @@ export function Dashboard() {
       series:
         summary.ratio_series?.["return_on_equity_pct"] && summary.ratio_series["return_on_equity_pct"].length > 1
           ? summary.ratio_series["return_on_equity_pct"]
-          : byName["return_on_equity_pct"]?.value != null
+          : byName["return_on_equity_pct"]?.value !== null && byName["return_on_equity_pct"]?.value !== undefined
           ? [byName["return_on_equity_pct"].value]
           : [],
       unit: "%",
@@ -606,7 +607,7 @@ export function Dashboard() {
       series:
         summary.ratio_series?.["debt_to_assets"] && summary.ratio_series["debt_to_assets"].length > 1
           ? summary.ratio_series["debt_to_assets"]
-          : byName["debt_to_assets"]?.value != null
+          : byName["debt_to_assets"]?.value !== null && byName["debt_to_assets"]?.value !== undefined
           ? [byName["debt_to_assets"].value]
           : [],
       unit: "%",
@@ -797,7 +798,7 @@ export function Dashboard() {
               <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>Balance Sheet Scale</div>
             </div>
             <div style={{ background: "#F9FAFB", padding: "16px 20px", borderRadius: 12, border: "1px solid #E5E7EB" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Total Liabilities &amp; Debt</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Total Liabilities</div>
               <div style={{ fontSize: 20, fontWeight: 800, color: "#0A0A0A", marginTop: 4 }}>{inr(Number(periodRecord.total_liabilities), isCrores)}</div>
               <div style={{ fontSize: 11.5, color: "#9CA3AF", marginTop: 2 }}>External Obligations</div>
             </div>
@@ -826,7 +827,7 @@ export function Dashboard() {
         <div className="kpi-grid">
           {metricCards.map((metric) => {
             const ratio = byName[metric.key];
-            const delta = metric.series[metric.series.length - 1] - metric.series[0];
+            const delta = metric.series.length > 1 ? metric.series[metric.series.length - 1] - metric.series[0] : null;
             return (
               <div className="metric" key={metric.key}>
                 <div className="metric-head">
@@ -837,8 +838,8 @@ export function Dashboard() {
                       <span className="unit">{metric.unit}</span>
                     )}
                   </div>
-                  <span className={`delta ${delta >= 0 ? "is-up" : "is-down"}`}>
-                    {delta >= 0 ? "▲ improving" : "▼ declining"}
+                  <span className={`delta ${delta === null || delta === undefined ? "" : delta >= 0 ? "is-up" : "is-down"}`}>
+                    {delta === null || delta === undefined ? "Trend unavailable" : delta >= 0 ? "▲ improving" : "▼ declining"}
                   </span>
                 </div>
                 <div className="metric-chart">
@@ -856,8 +857,8 @@ export function Dashboard() {
         {cashDisplay.length > 0 && (
           <Card>
             <div className="section-header">
-              <h2>Cash-Flow Outlook</h2>
-              <span className="section-run">Observed + deterministic projection</span>
+              <h2>Cash Balance History</h2>
+              <span className="section-run">Observed closing cash by reporting period</span>
             </div>
             <div className="chart-card">
               <div style={{ position: "relative" }}>
@@ -866,39 +867,19 @@ export function Dashboard() {
                   color="#047857"
                   width={320}
                   height={100}
-                  projectedFrom={Math.max(0, cashDisplay.length - 2)}
                   labels={cashLabels}
                 />
-                {cashDisplay.length >= 2 && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 6,
-                      right: 0,
-                      fontSize: 10.5,
-                      color: "#6B7280",
-                      fontStyle: "italic",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                    }}
-                  >
-                    <svg width="18" height="6" style={{ display: "inline" }}>
-                      <line x1="0" y1="3" x2="18" y2="3" stroke="#047857" strokeWidth="1.8" strokeDasharray="4,3" />
-                    </svg>
-                    Projected →
-                  </span>
-                )}
+
               </div>
               <div className="chart-trend">
                 <div>
-                  <span className="chart-trend-label">Opening Liquidity</span>
-                  <strong className="num">{inr(cashDisplay[0])}</strong>
+                  <span className="chart-trend-label">Earliest Period Cash</span>
+                  <strong className="num">{inr(cashDisplay[0], isCrores)}</strong>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <span className="chart-trend-label">Projected Month 6 Cash</span>
+                  <span className="chart-trend-label">Latest Period Cash</span>
                   <strong className="num" style={{ color: "#047857" }}>
-                    {inr(cashDisplay[cashDisplay.length - 1])}
+                    {inr(cashDisplay[cashDisplay.length - 1], isCrores)}
                   </strong>
                 </div>
               </div>
@@ -951,17 +932,22 @@ export function Dashboard() {
               </thead>
               <tbody>
                 {allRatios.map((ratio) => {
-                  let display = "—";
+                  let display = "N/A — source data unavailable";
                   if (ratio.value !== null) {
-                    if (ratio.name === "debt_to_assets") display = `${(ratio.value * 100).toFixed(1)}%`;
-                    else if (["current_ratio", "quick_ratio", "debt_to_equity"].includes(ratio.name))
-                      display = `${ratio.value.toFixed(2)}x`;
-                    else display = `${ratio.value.toFixed(1)}%`;
+                    if (["borrowings_to_assets", "total_liabilities_to_assets", "debt_to_assets"].includes(ratio.name)) {
+                      display = `${ratio.value.toFixed(1)}%`;
+                    } else if (["borrowings_to_equity", "total_liabilities_to_equity", "debt_to_equity", "current_ratio", "quick_ratio"].includes(ratio.name)) {
+                      display = `${ratio.value.toFixed(2)}×`;
+                    } else if (ratio.name === "working_capital") {
+                      display = isCrores ? `₹${ratio.value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Cr` : `₹${ratio.value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    } else {
+                      display = `${ratio.value.toFixed(1)}%`;
+                    }
                   }
                   return (
                     <tr key={ratio.name}>
                       <td style={{ fontWeight: 600, color: "var(--ink)" }}>
-                        {ratio.name.replace(/_/g, " ").toUpperCase()}
+                        {ratio.name === "debt_to_equity" ? "BORROWINGS TO EQUITY" : ratio.name.replace(/_/g, " ").toUpperCase()}
                       </td>
                       <td className="num" style={{ fontWeight: 700 }}>
                         {display}

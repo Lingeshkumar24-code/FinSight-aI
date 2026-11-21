@@ -1,5 +1,14 @@
 import os
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./finsight-test.db"
+import tempfile
+from pathlib import Path
+
+_test_db_path = Path(tempfile.gettempdir()) / "finsight-test-suite.db"
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_test_db_path.as_posix()}"
+os.environ["GROQ_API_KEY"] = ""
+os.environ["OPENROUTER_API_KEY"] = ""
+os.environ["OPENAI_API_KEY"] = ""
+os.environ["GEMINI_API_KEY"] = ""
+os.environ["RESEND_API_KEY"] = ""
 
 import pytest
 from fastapi.testclient import TestClient

@@ -8,11 +8,11 @@ from .base import CompletionRequest, CompletionResponse, LLMProvider, ProviderEr
 
 
 _OPENROUTER_FALLBACK_MODELS = [
-    "deepseek/deepseek-chat:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "google/gemini-2.0-flash-exp:free",
-    "qwen/qwen-2.5-72b-instruct:free",
-    "meta-llama/llama-3.1-8b-instruct:free",
+    "baidu/ernie-5.5-flash-preview:free",
+    "recursive/flint-v1.0:free",
+    "google/gemma-4-31b-it:free",
+    "inclusionai/ling-3.2-flash:free",
+    "deepseek/deepseek-chat",
 ]
 
 
@@ -26,11 +26,11 @@ class OpenRouterProvider(LLMProvider):
     def __init__(
         self,
         api_key: str,
-        model: str = "deepseek/deepseek-chat:free",
+        model: str = "baidu/ernie-5.5-flash-preview:free",
         timeout: float = 25.0,
     ) -> None:
         self.api_key = (api_key or "").strip()
-        self.model = (model or "deepseek/deepseek-chat:free").strip()
+        self.model = (model or "baidu/ernie-5.5-flash-preview:free").strip()
         self.timeout = timeout
         self._base_url = "https://openrouter.ai/api/v1/chat/completions"
 

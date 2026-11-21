@@ -151,9 +151,17 @@ async def upload_document(
             ],
         )
 
-    # 4. Extract structured financial statements and populate user's business records
+    # 4. Extract statements before changing stored state. A malformed or
+    # unsupported upload must not silently leave a new document with stale KPIs.
     try:
-        company_name, fin_records, cashflows = extract_financial_records_from_workbook(raw, filename)
+        company_name, fin_records, cashflows = extract_financial_records_from_workbook(
+            raw, filename, extracted_text=extracted.text
+        )
+    except Exception as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Could not validate financial data: {exc}") from exc
+
+    try:
         # Only ingest structured financial records if this is a comprehensive statement
         # (multi-period or contains balance sheet assets), so tiny 1-line text-chunk tests don't wipe demo records.
         if fin_records and (len(fin_records) >= 2 or any(r.get("total_assets") for r in fin_records)):
@@ -168,6 +176,10 @@ async def upload_document(
             )
 
             for rec_data in fin_records:
+                for numeric_field in ("revenue", "net_income", "total_assets", "total_liabilities", "total_equity", "operating_expenses"):
+                    if rec_data.get(numeric_field) is None:
+                        rec_data[numeric_field] = 0.0
+                rec_data["cogs"] = rec_data.get("cogs") if rec_data.get("cogs") is not None else 0.0
                 session.add(
                     FinancialRecord(
                         business_id=user.business_id,
@@ -194,9 +206,9 @@ async def upload_document(
                             notes=f"Extracted from {filename}",
                         )
                     )
-    except Exception:
-        # Never break document upload if structured statement extraction encounters an anomaly
-        pass
+    except Exception as exc:
+        await session.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Could not save extracted financial data: {exc}") from exc
 
     await session.commit()
     vector_store.delete_by_metadata({"document_id": document_id})

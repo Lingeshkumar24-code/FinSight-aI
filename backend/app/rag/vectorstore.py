@@ -46,6 +46,7 @@ _STOPWORDS = {
     "t", "than", "that", "the", "their", "theirs", "them", "themselves", "then", "there", "these", "they", "this", "those", "through", "to", "too",
     "under", "until", "up", "very",
     "was", "we", "were", "what", "when", "where", "which", "while", "who", "whom", "why", "will", "with", "would", "you", "your", "yours", "yourself", "yourselves",
+    "formula", "cont", "row", "sheet",
 }
 
 
@@ -72,7 +73,9 @@ def _tokenize(text: str) -> list[str]:
 
 
 def _vectorize(text: str) -> Counter:
-    return Counter(_tokenize(text))
+    clean_text = re.sub(r"\(formula:\s*[^)]+\)", "", text)
+    clean_text = re.sub(r"formula:\s*=[^\s|]+", "", clean_text)
+    return Counter(_tokenize(clean_text))
 
 
 def _expand_query_vector(vec: Counter) -> Counter:

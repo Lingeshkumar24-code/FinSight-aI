@@ -1,6 +1,6 @@
 import pytest
 
-from app.agents.graph import build_graph, route_task, understand_query
+from app.agents.graph import build_graph, make_generate_response, route_task, understand_query
 from app.rag.ingestion import chunk_document
 from app.rag.retriever import Retriever
 from app.rag.vectorstore import InMemoryVectorStore
@@ -43,6 +43,31 @@ def test_understand_query_does_not_false_positive_on_substring():
 def test_route_task_maps_intent_to_engine():
     assert route_task({"intent": "risk_detection"})["route"] == "engine:risk_detection"
     assert route_task({"intent": "general_rag"})["route"] == "rag:retrieve"
+
+
+@pytest.mark.asyncio
+async def test_verified_missing_operating_profit_bypasses_llm():
+    class UnexpectedLLM:
+        async def complete(self, request):  # pragma: no cover - must not be called
+            raise AssertionError("LLM must not override explicit missing-source provenance")
+
+    context = """Company name: TECH MAHINDRA LTD
+Revenue (2026-03-31): 56,815.40 (source: uploaded workbook)
+Operating profit / EBIT (2026-03-31): not available (source: not reported)
+Company notes: source_refs={"operating_profit":"not reported","revenue":"Data Sheet!K17"}
+"""
+    responder = make_generate_response(UnexpectedLLM())
+    result = await responder({
+        "user_query": "Is FY26 operating profit reported?",
+        "route": "rag:retrieve",
+        "errors": [],
+        "tool_result": {"context": "neighboring rows contain Sales only"},
+        "extracted_params": {"_business_context": context},
+        "validation_notes": [],
+    })
+    assert "not reported" in result["final_response"]
+    assert "Data Sheet!K17" in result["final_response"]
+    assert "not operating profit" in result["final_response"]
 
 
 # ---------------------------------------------------------------------------

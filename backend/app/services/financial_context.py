@@ -91,8 +91,43 @@ async def build_context(session: AsyncSession, business_id: str) -> FinancialCon
             add(verified_category, f"Operating cash flow ({latest.period})", latest.operating_cash_flow, source_label)
         if latest.total_equity is not None:
             add(verified_category, f"Shareholders' equity ({latest.period})", latest.total_equity, source_label)
+        closing_cash = _num(getattr(latest, "closing_cash", None) or latest.cash)
+        if closing_cash is not None:
+            add(verified_category, f"Closing cash balance ({latest.period})", closing_cash, source_label)
+        ncf = getattr(latest, "net_cash_flow", None)
+        if ncf is not None:
+            add(verified_category, f"Net cash flow ({latest.period})", ncf, source_label)
         if latest.notes:
             add(verified_category, "Company notes", latest.notes, source_label)
+
+        # Workbook ingestion keeps cell coordinates in notes. Preserve those
+        # references as explicit context so the CFO can cite the real cells.
+        source_refs: dict[str, str] = {}
+        if latest.notes and "source_refs=" in latest.notes:
+            try:
+                source_refs = json.loads(latest.notes.split("source_refs=", 1)[1])
+            except (json.JSONDecodeError, TypeError):
+                source_refs = {}
+        for field, label in (
+            ("inventory", "Inventory"),
+            ("total_current_assets", "Total current assets"),
+            ("total_current_liabilities", "Total current liabilities"),
+            ("cogs", "Cost of goods sold"),
+            ("operating_profit", "Operating profit / EBIT"),
+        ):
+            value = getattr(latest, {
+                "inventory": "inventory",
+                "total_current_assets": "total_current_assets",
+                "total_current_liabilities": "total_current_liabilities",
+                "cogs": "cogs",
+                "operating_profit": "ebit",
+            }[field], None)
+            add(
+                verified_category,
+                f"{label} ({latest.period})",
+                value,
+                f"{source_label}; source {source_refs.get(field, 'not verifiable')}" if source_refs else source_label,
+            )
 
         if len(records) > 1:
             rev_items = []
@@ -112,10 +147,13 @@ async def build_context(session: AsyncSession, business_id: str) -> FinancialCon
         receivables = _num(latest.accounts_receivable) or 0.0
         inventory = _num(latest.inventory) or 0.0
         other_ca = _num(latest.other_current_assets) or 0.0
+        # Liquidity ratios require reported totals. Component sums can omit
+        # material rows and must not be presented as authoritative totals.
         current_assets = _num(latest.total_current_assets)
-        if current_assets is None:
-            current_assets = cash + receivables + inventory + other_ca
-        current_liabilities = _num(latest.total_current_liabilities) or 0.0
+        current_liabilities = _num(latest.total_current_liabilities)
+        borrowings = None
+        if latest.short_term_debt is not None or latest.long_term_debt is not None:
+            borrowings = (_num(latest.short_term_debt) or 0.0) + (_num(latest.long_term_debt) or 0.0)
 
         bs = BalanceSheet(
             cash=cash,
@@ -127,11 +165,23 @@ async def build_context(session: AsyncSession, business_id: str) -> FinancialCon
             total_current_liabilities=current_liabilities,
             total_liabilities=latest.total_liabilities,
             total_equity=latest.total_equity,
+            borrowings=borrowings,
         )
         inc = IncomeStatement(
             revenue=latest.revenue,
-            cogs=latest.cogs,
-            operating_expenses=latest.operating_expenses,
+            # Required schema columns historically defaulted absent inputs to
+            # zero. For extracted workbooks, source_refs distinguishes a real
+            # reported zero from an unavailable row.
+            cogs=(
+                None
+                if source_refs.get("cogs") == "not reported" or (not source_refs and not latest.cogs)
+                else latest.cogs
+            ),
+            operating_expenses=(
+                None if source_refs and source_refs.get("operating_profit") == "not reported"
+                and source_refs.get("cogs") == "not reported"
+                else (latest.operating_expenses or 0.0)
+            ),
             net_income=latest.net_income,
         )
         for ratio in FinancialStatementEngine().compute(bs, inc):

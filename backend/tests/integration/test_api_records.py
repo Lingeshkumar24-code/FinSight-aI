@@ -17,7 +17,7 @@ def test_records_dashboard_and_context(client: TestClient, auth_headers: dict[st
     assert body["data_label"] == "DEMO DATA"
     assert body["period"] == "2026-Q3"
     assert any(ratio["name"] == "net_margin_pct" for ratio in body["ratios"])
-    assert len(body["cash_series"]) == 9
+    assert len(body["cash_series"]) == len(records.json())
 
     context = client.get("/api/v1/financials/context", headers=auth_headers)
     assert context.status_code == 200

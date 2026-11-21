@@ -183,6 +183,7 @@ export interface DashboardSummary {
   ratio_series?: Record<string, number[]>;
   risk?: RiskResponse;
   cash_series?: number[];
+  cash_series_periods?: string[];
   cash_runway_months?: number | null;
   cashflow_records?: Record<string, unknown>[];
   profit_margin_pct?: number | null;

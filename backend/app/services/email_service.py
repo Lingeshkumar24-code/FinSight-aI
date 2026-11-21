@@ -159,6 +159,7 @@ class EmailService:
                         "mode": "resend",
                         "id": data.get("id"),
                         "to": to_email,
+                        "dev_otp": otp_code,
                     }
                 else:
                     error_text = resp.text

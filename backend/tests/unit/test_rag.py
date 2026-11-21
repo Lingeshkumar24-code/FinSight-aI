@@ -151,3 +151,38 @@ def test_agentic_rag_no_hardcoded_company_branching_for_unseen_company():
     assert "State Bank" not in res.reasoned_decision
     assert res.structured_metrics.get("total_debt") == 1200000.0
     assert res.structured_metrics.get("cash_balance") == 450000.0
+
+
+def test_agentic_rag_never_calls_total_liabilities_borrowings():
+    from app.rag.agentic_rag import AgenticRAGEngine
+
+    store = InMemoryVectorStore()
+    store.upsert(chunk_document(
+        "Company Name | Example Industries Ltd\nTotal Assets | 5000000\nTotal Liabilities | 3200000\nShareholders Equity | 1800000",
+        source="example.xlsx",
+        metadata={"business_id": "example", "document_id": "doc-1"},
+    ))
+    rag = AgenticRAGEngine(Retriever(store, metadata_filter={"business_id": "example", "document_id": "doc-1"}))
+    result = rag.retrieve_and_reason("How much debt and total liabilities are reported?")
+
+    assert result.structured_metrics["total_debt"] is None
+    assert result.structured_metrics["total_liabilities"] == 3200000.0
+    assert "cannot be labeled as debt" in result.reasoned_decision
+
+
+def test_agentic_rag_retrieval_is_document_scoped_for_same_tenant():
+    from app.rag.agentic_rag import AgenticRAGEngine
+
+    store = InMemoryVectorStore()
+    store.upsert([
+        *chunk_document("Company Name | North Ltd\nRevenue | 100\nNet Profit | 10", source="north.xlsx", metadata={"business_id": "tenant", "document_id": "north"}),
+        *chunk_document("Company Name | South Ltd\nRevenue | 900\nNet Profit | 90", source="south.xlsx", metadata={"business_id": "tenant", "document_id": "south"}),
+        *chunk_document("Company Name | Other Ltd\nRevenue | 9999", source="other.xlsx", metadata={"business_id": "other", "document_id": "other"}),
+    ])
+    rag = AgenticRAGEngine(Retriever(store, metadata_filter={"business_id": "tenant", "document_id": "north"}))
+    result = rag.retrieve_and_reason("Summarize revenue and net profit")
+
+    assert "100" in result.context.combined_text
+    assert "900" not in result.context.combined_text
+    assert "9999" not in result.context.combined_text
+    assert all("north.xlsx" in citation for citation in result.context.citations)

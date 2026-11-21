@@ -79,7 +79,7 @@ _NOISE_MARKERS = [
 def classify_financial_intent(query: str) -> FinancialIntent:
     q = query.lower()
     # Summarization requests must be identified before entity keywords
-    if any(k in q for k in ["summarize", "summary", "overview", "what is this document", "tell me about this business", "key findings", "financial data in this document", "financial details", "financial statements", "highlights", "executive summary"]):
+    if any(k in q for k in ["summarize", "summary", "overview", "what is this document", "tell me about this business", "key findings", "financial data in this document", "financial details", "financial statements", "highlights", "executive summary", "position"]):
         return FinancialIntent.SUMMARY
     if any(k in q for k in ["cash flow", "cash from operating", "operating cash", "cfo", "cash balance", "closing cash", "free cash flow", "cash generated", "net cash"]):
         return FinancialIntent.CASH_FLOW
@@ -89,7 +89,7 @@ def classify_financial_intent(query: str) -> FinancialIntent:
         return FinancialIntent.STOCK_INVESTMENT
     if any(k in q for k in ["balance sheet", "total asset", "total liability", "assets and liabilities", "share capital", "net worth", "fixed assets", "current assets", "current liabilities", "total equity"]):
         return FinancialIntent.BALANCE_SHEET
-    if any(k in q for k in ["income statement", "p&l", "profit and loss", "profit loss", "operating profit", "net profit", "pat", "ebit", "ebitda", "gross profit", "sales and profit"]):
+    if any(k in q for k in ["income statement", "p&l", "profit and loss", "profit loss", "operating profit", "net profit", "pat", "ebit", "ebitda", "gross profit", "sales and profit", "annual profit", "profit", "net income", "earnings", "bottom line"]):
         return FinancialIntent.INCOME_STATEMENT
     if any(k in q for k in ["ratio", "ratios", "margin", "margins", "profit margin", "opm", "npm", "roe", "roce", "roa", "current ratio", "quick ratio", "debt to equity", "leverage ratio"]):
         return FinancialIntent.RATIOS
@@ -272,6 +272,23 @@ class AgenticRAGEngine:
                 hits = store.similarity_search(sub_query, top_k=3, metadata_filter=base_filter)
                 add_chunks(hits)
 
+        # Cross-domain expansions for compound queries (e.g. asking for profit + debt in one prompt)
+        q_lower = query.lower()
+        if any(k in q_lower for k in ("borrow", "debt", "loan", "liabilit")):
+            for sub_query in [
+                "Borrowings Total Debt liabilities balance sheet Data Sheet",
+                "Borrowings Other Liabilities balance sheet",
+            ]:
+                hits = store.similarity_search(sub_query, top_k=4, metadata_filter=base_filter)
+                add_chunks(hits)
+
+        if any(k in q_lower for k in ("cash", "cfo", "inflow")):
+            for sub_query in [
+                "Cash from Operating Activity Cash Flow closing cash Data Sheet",
+            ]:
+                hits = store.similarity_search(sub_query, top_k=3, metadata_filter=base_filter)
+                add_chunks(hits)
+
         # 2. Filter noise chunks
         filtered_chunks = self._filter_noise_chunks(targeted_chunks)
         primary_ids = {h.chunk.id for h in primary_hits}
@@ -279,7 +296,7 @@ class AgenticRAGEngine:
             key=lambda s: (1 if s.chunk.id in primary_ids else 0, s.score),
             reverse=True,
         )
-        top_chunks = filtered_chunks[:12]
+        top_chunks = filtered_chunks[:16]
 
         # 3. Build combined text and clean citations
         citations: list[str] = []
@@ -329,6 +346,7 @@ class AgenticRAGEngine:
             "pnl": {},
             "cash_balance": None,
             "total_debt": None,
+            "total_liabilities": None,
             "total_assets": None,
             "market_cap": None,
             "share_price": None,
@@ -339,7 +357,9 @@ class AgenticRAGEngine:
         # 4a. Identify company name from text if still default
         if company == "FinSight Business":
             for cand in [
+                re.search(r"COMPANY NAME\s*\|\s*([A-Za-z0-9\s.,&'-]+)", all_text, re.IGNORECASE),
                 re.search(r"([A-Za-z0-9\s.,&'-]+?(?:INFRASTRUCTURE|INFRA|POWER|STEEL|MOTORS|FINANCE|BANK|LTD|LIMITED|PVT|ENTERPRISES))", all_text, re.IGNORECASE),
+                re.search(r"\[([A-Za-z0-9\s.,&'-]+?)\s*\|", all_text),
                 re.search(r"Row 1:\s*([A-Za-z0-9\s.,&'-]+)", all_text),
             ]:
                 if cand:
@@ -352,8 +372,8 @@ class AgenticRAGEngine:
         # 4b. Extract periods / years header from table rows
         periods: list[str] = []
         for line in all_text.splitlines():
-            if any(k in line.lower() for k in ("mar 20", "jun 20", "sep 20", "dec 20", "fy2", "fy 2", "201", "202")):
-                year_matches = re.findall(r"(?:Mar|Jun|Sep|Dec|FY)?\s*20\d\d(?:\s*-\s*\d\d)?", line, re.IGNORECASE)
+            if any(k in line.lower() for k in ("mar 20", "jun 20", "sep 20", "dec 20", "fy2", "fy 2", "201", "202", "report date")):
+                year_matches = re.findall(r"(?:Mar|Jun|Sep|Dec|FY)?\s*20\d\d(?:-\d{2}-\d{2}|-\d{2})?", line, re.IGNORECASE)
                 if len(year_matches) >= 3:
                     periods = [y.strip() for y in year_matches]
                     break
@@ -399,45 +419,66 @@ class AgenticRAGEngine:
             if any(k in line_lower for k in ("net profit", "pat", "profit after tax", "profit / (loss)", "net income", "loss for the")):
                 nums = _extract_row_numbers(line)
                 if nums:
-                    m["net_profit_sample"] = nums
-                    if periods and len(periods) == len(nums):
-                        for p, n in zip(periods, nums):
+                    if periods and len(nums) >= len(periods):
+                        annual_nums = nums[:len(periods)]
+                        m["net_profit_sample"] = annual_nums
+                        for p, n in zip(periods, annual_nums):
                             pnl_extracted.setdefault(p, {})["net_profit"] = n
+                    elif "net_profit_sample" not in m or len(nums) > len(m["net_profit_sample"]):
+                        m["net_profit_sample"] = nums
 
             # Sales / Revenue
             elif any(k in line_lower for k in ("sales", "revenue", "turnover", "total income", "revenue from operations")):
                 nums = _extract_row_numbers(line)
                 if nums:
-                    m["revenue_sample"] = nums
-                    if periods and len(periods) == len(nums):
-                        for p, n in zip(periods, nums):
+                    if periods and len(nums) >= len(periods):
+                        annual_nums = nums[:len(periods)]
+                        m["revenue_sample"] = annual_nums
+                        for p, n in zip(periods, annual_nums):
                             pnl_extracted.setdefault(p, {})["revenue"] = n
+                    elif "revenue_sample" not in m or len(nums) > len(m["revenue_sample"]):
+                        m["revenue_sample"] = nums
 
             # Operating Profit / EBITDA
             elif any(k in line_lower for k in ("operating profit", "ebitda", "pbit", "operating income", "ebit")):
                 nums = _extract_row_numbers(line)
                 if nums:
-                    m["operating_profit_sample"] = nums
-                    if periods and len(periods) == len(nums):
-                        for p, n in zip(periods, nums):
+                    if periods and len(nums) >= len(periods):
+                        annual_nums = nums[:len(periods)]
+                        m["operating_profit_sample"] = annual_nums
+                        for p, n in zip(periods, annual_nums):
                             pnl_extracted.setdefault(p, {})["operating_profit"] = n
+                    elif "operating_profit_sample" not in m or len(nums) > len(m["operating_profit_sample"]):
+                        m["operating_profit_sample"] = nums
 
             # Total Assets
             elif any(k in line_lower for k in ("total assets", "balance sheet total", "total equity and liabilities")):
                 nums = _extract_row_numbers(line)
-                if nums:
+                if nums and ("assets_sample" not in m or len(nums) >= len(m["assets_sample"])):
                     m["assets_sample"] = nums
 
-            # Borrowings / Debt
-            elif any(k in line_lower for k in ("borrowings", "total debt", "long term debt", "short term debt", "total liabilities")):
+            # Borrowings are interest-bearing debt; total liabilities are a
+            # separate balance-sheet measure and must never be substituted.
+            elif any(k in line_lower for k in ("borrowings", "total debt", "long term debt", "short term debt", "interest-bearing debt")):
                 nums = _extract_row_numbers(line)
-                if nums:
-                    m["liabilities_sample"] = nums
+                if nums and ("borrowings_sample" not in m or len(nums) >= len(m["borrowings_sample"])):
+                    m["borrowings_sample"] = nums
                     m["total_debt"] = nums[-1]
+
+            # Keep total liabilities separately so AI answers can distinguish
+            # the reported totals from interest-bearing borrowings.
+            elif "total liabilities" in line_lower:
+                nums = _extract_row_numbers(line)
+                if nums and ("liabilities_sample" not in m or len(nums) >= len(m["liabilities_sample"])):
+                    m["liabilities_sample"] = nums
+                    m["total_liabilities"] = nums[-1]
 
             # Cash & Bank
             elif any(k in line_lower for k in ("cash & bank", "cash and bank", "cash and cash equivalents", "bank balance", "closing cash")):
                 nums = _extract_row_numbers(line)
+                if nums and ("cash_sample" not in m or len(nums) >= len(m["cash_sample"])):
+                    m["cash_sample"] = nums
+                    m["cash_balance"] = nums[-1]
                 if nums:
                     m["cash_sample"] = nums
                     m["cash_balance"] = nums[-1]
@@ -548,6 +589,102 @@ class AgenticRAGEngine:
 
         lines = [f"Executive Financial Evaluation — {company_display}:\n"]
 
+        # Case C0a: User asks about financial risks
+        is_risk_q = intent == FinancialIntent.RISK or any(
+            k in query.lower() for k in ("risk", "risks", "solvency", "leverage risk", "danger", "warning", "liquidity risk", "financial risk", "red flag")
+        )
+        if is_risk_q:
+            lines.append("Executive Financial Risk Assessment:")
+            if debt is not None:
+                lines.append(f"- Reported Borrowings / Interest-Bearing Debt: ₹{_format_inr(debt)} Cr")
+            if m.get("total_liabilities") is not None:
+                lines.append(f"- Total Liabilities: ₹{_format_inr(m['total_liabilities'])} Cr")
+            if equity_sample:
+                lines.append(f"- Shareholders' Equity (Net Worth): ₹{_format_inr(equity_sample[-1])} Cr")
+            if cash is not None or cash_sample:
+                c_val = cash if cash is not None else cash_sample[-1]
+                lines.append(f"- Liquid Cash Reserves: ₹{_format_inr(c_val)} Cr")
+            if m.get("operating_cash_flow") is not None:
+                cfo_val = m["operating_cash_flow"]
+                status = "Positive CFO" if cfo_val > 0 else "Operating Burn"
+                lines.append(f"- Operating Cash Flow: ₹{_format_inr(cfo_val)} Cr ({status})")
+            if net_profit_sample:
+                latest_p = net_profit_sample[-1]
+                status = "Net Loss Warning" if latest_p < 0 else "Profitable"
+                lines.append(f"- Latest Net Profit: ₹{_format_inr(abs(latest_p))} Cr ({status})")
+            lines.append(
+                f"\nRisk Summary: Maintain sufficient operating cash buffer for {company_display} "
+                "to service debt obligations and hedge against revenue volatility."
+            )
+            return "\n".join(lines)
+
+        # Case C0b: User asks to compare revenue across different years
+        is_compare_years_q = any(
+            k in query.lower() for k in ("compare revenue across different years", "compare revenue", "across years", "across different years", "multi-year revenue", "revenue across years", "trend across years")
+        )
+        if is_compare_years_q and (revenue_sample or pnl):
+            lines.append("Multi-Year Sales & Revenue Trajectory:")
+            if pnl:
+                for p, pdata in list(pnl.items())[-10:]:
+                    rev_val = pdata.get("revenue")
+                    if rev_val is not None:
+                        lines.append(f"- {p}: Sales ₹{rev_val:,.2f} Cr" if abs(rev_val) < 100000 else f"- {p}: Sales ₹{rev_val:,.0f}")
+            elif revenue_sample:
+                for i, r_val in enumerate(revenue_sample, 1):
+                    p_lbl = periods[i-1] if i <= len(periods) else f"Period {i}"
+                    lines.append(f"- {p_lbl}: Sales ₹{r_val:,.2f} Cr" if abs(r_val) < 100000 else f"- {p_lbl}: Sales ₹{r_val:,.0f}")
+            return "\n".join(lines)
+
+        # Case C0c: User asks to explain the balance sheet
+        is_explain_bs_q = any(
+            k in query.lower() for k in ("explain the balance sheet", "explain balance sheet", "break down balance sheet", "understand balance sheet")
+        )
+        if is_explain_bs_q and (assets_sample or liabilities_sample or debt is not None or cash is not None or equity_sample):
+            lines.append("Balance Sheet Explanation & Capital Structure:")
+            if assets_sample:
+                lines.append(f"1. Total Assets (What the business owns): ₹{_format_inr(assets_sample[-1])} Cr")
+            if debt is not None:
+                lines.append(f"2. Reported Borrowings / Debt: ₹{_format_inr(debt)} Cr")
+            if m.get("total_liabilities") is not None:
+                lines.append(f"Total liabilities: ₹{_format_inr(m['total_liabilities'])} Cr")
+            if equity_sample:
+                lines.append(f"3. Shareholders' Equity (Owner capital & reserves): ₹{_format_inr(equity_sample[-1])} Cr")
+            if cash is not None or cash_sample:
+                c_val = cash if cash is not None else cash_sample[-1]
+                lines.append(f"4. Liquid Cash & Bank: ₹{_format_inr(c_val)} Cr")
+            lines.append("\nAccounting Identity Identity: Total Assets = Total Liabilities + Shareholders' Equity.")
+            return "\n".join(lines)
+
+        # Case C0d: User asks for key findings
+        is_findings_q = any(
+            k in query.lower() for k in ("key findings", "key takeaway", "highlights", "what are the key findings")
+        )
+        if is_findings_q:
+            lines.append("Key Findings & Executive Takeaways:")
+            if revenue_sample or pnl:
+                latest_rev = revenue_sample[-1] if revenue_sample else list(pnl.values())[-1].get("revenue")
+                if latest_rev:
+                    lines.append(f"- Revenue: Latest reported turnover is ₹{_format_inr(latest_rev)} Cr.")
+            if net_profit_sample or pnl:
+                latest_net = net_profit_sample[-1] if net_profit_sample else list(pnl.values())[-1].get("net_profit")
+                if latest_net is not None:
+                    status = "Net Loss" if latest_net < 0 else "Net Profit"
+                    lines.append(f"- Profitability: Reported {status} of ₹{_format_inr(abs(latest_net))} Cr.")
+            if debt is not None:
+                lines.append(f"- Borrowings: ₹{_format_inr(debt)} Cr.")
+            if m.get("total_liabilities") is not None:
+                lines.append(f"- Total liabilities: ₹{_format_inr(m['total_liabilities'])} Cr.")
+            # Extract narrative bullets from context text
+            bullets = [
+                l.strip() for l in context_text.splitlines()
+                if (l.strip().startswith(("-", "*", "•", "1.", "2.", "3.", "4.", "5.")) or any(w in l.lower() for w in ("objective", "proposal", "deliverable", "growth", "strategy", "recommendation")))
+                and len(l.strip()) > 10 and not l.strip().startswith("===")
+            ]
+            for b in bullets[:4]:
+                clean_b = re.sub(r"^[-*•\d.]\s*", "", b)
+                lines.append(f"- {clean_b}")
+            return "\n".join(lines)
+
         # Case C0: User asks about stock investment / market valuation
         is_stock_val_q = intent == FinancialIntent.STOCK_INVESTMENT or any(
             k in query.lower() for k in ("stock", "stocks", "valuation", "invest", "share price", "market cap", "p/e", "pe ratio")
@@ -640,10 +777,13 @@ class AgenticRAGEngine:
         is_cf_q = any(k in query.lower() for k in ("cash flow", "operating cash", "cfo", "cash from operations", "inflow", "outflow"))
         cfo_val = m.get("operating_cash_flow")
         cfo_sample = m.get("operating_cash_flow_sample", [])
-        if is_cf_q and (cfo_val is not None or cfo_sample):
+        if is_cf_q and (cfo_val is not None or cfo_sample or cash is not None or cash_sample):
             lines.append("Cash Flow Performance:")
             if cfo_val is not None:
                 lines.append(f"- Latest Operating Cash Flow (CFO): ₹{cfo_val:,.2f} Cr" if abs(cfo_val) < 100000 else f"- Latest Operating Cash Flow (CFO): ₹{cfo_val:,.0f}")
+            c_disp = cash if cash is not None else cash_sample[-1] if cash_sample else None
+            if c_disp is not None:
+                lines.append(f"- Closing Cash & Bank Balance: ₹{c_disp:,.2f} Cr (Balance sheet cash, distinct from periodic cash flow)" if abs(c_disp) < 100000 else f"- Closing Cash & Bank Balance: ₹{c_disp:,.0f} (Balance sheet cash, distinct from periodic cash flow)")
             if len(cfo_sample) > 1:
                 trend = ", ".join(f"₹{x:,.2f} Cr" if abs(x) < 100000 else f"₹{x:,.0f}" for x in cfo_sample[-6:])
                 lines.append(f"- Multi-period Operating Cash Flow Trend: {trend}")
@@ -651,14 +791,17 @@ class AgenticRAGEngine:
 
         # Case C4: User specifically asks about borrowings / debt
         is_debt_q = any(k in query.lower() for k in ("borrowing", "borrowings", "debt", "loan", "loans", "leverage"))
-        if is_debt_q and (debt is not None or liabilities_sample):
-            d_val = debt if debt is not None else liabilities_sample[-1]
+        if is_debt_q and debt is not None:
+            d_val = debt
             lines.append("Borrowings & Debt Profile:")
             lines.append(f"- Total Borrowings / Outstanding Debt: ₹{d_val:,.2f} Cr" if abs(d_val) < 100000 else f"- Total Borrowings / Outstanding Debt: ₹{d_val:,.0f}")
-            if len(liabilities_sample) > 1:
-                trend = ", ".join(f"₹{x:,.2f} Cr" if abs(x) < 100000 else f"₹{x:,.0f}" for x in liabilities_sample[-6:])
+            if len(m.get("borrowings_sample", [])) > 1:
+                trend = ", ".join(f"₹{x:,.2f} Cr" if abs(x) < 100000 else f"₹{x:,.0f}" for x in m["borrowings_sample"][-6:])
                 lines.append(f"- Historical Borrowings Trend: {trend}")
             return "\n".join(lines)
+
+        if is_debt_q and m.get("total_liabilities") is not None:
+            return "Borrowings are not separately reported in the retrieved document. Total liabilities are ₹" + _format_inr(m["total_liabilities"]) + " Cr; that figure includes non-debt obligations and cannot be labeled as debt."
 
         # Case C5: General executive overview or Balance Sheet
         if pnl:
@@ -683,9 +826,10 @@ class AgenticRAGEngine:
             lines.append("\n2. Balance Sheet & Capital Structure:")
             if assets_sample:
                 lines.append(f"- Total Balance Sheet Assets: ₹{assets_sample[-1]:,.2f} Cr" if abs(assets_sample[-1]) < 100000 else f"- Total Balance Sheet Assets: ₹{assets_sample[-1]:,.0f}")
-            if liabilities_sample or debt is not None:
-                d_val = debt if debt is not None else liabilities_sample[-1]
-                lines.append(f"- Total Debt / Borrowings: ₹{d_val:,.2f} Cr" if abs(d_val) < 100000 else f"- Total Debt / Borrowings: ₹{d_val:,.0f}")
+            if debt is not None:
+                lines.append(f"- Total Borrowings: ₹{debt:,.2f} Cr" if abs(debt) < 100000 else f"- Total Borrowings: ₹{debt:,.0f}")
+            if m.get("total_liabilities") is not None:
+                lines.append(f"- Total Liabilities: ₹{m['total_liabilities']:,.2f} Cr" if abs(m['total_liabilities']) < 100000 else f"- Total Liabilities: ₹{m['total_liabilities']:,.0f}")
             if cash_sample or cash is not None:
                 c_val = cash if cash is not None else cash_sample[-1]
                 lines.append(f"- Liquid Cash & Bank Reserves: ₹{c_val:,.2f} Cr" if abs(c_val) < 100000 else f"- Liquid Cash & Bank Reserves: ₹{c_val:,.0f}")
@@ -693,20 +837,30 @@ class AgenticRAGEngine:
                 lines.append(f"- Equity / Net Worth: ₹{equity_sample[-1]:,.2f} Cr" if abs(equity_sample[-1]) < 100000 else f"- Equity / Net Worth: ₹{equity_sample[-1]:,.0f}")
 
         if not pnl and not revenue_sample and not net_profit_sample and not assets_sample and cash is None and debt is None:
-            # Parse any financial lines from context text directly
+            # Parse financial lines or key document text from context directly
             fin_lines = [
                 l.strip() for l in context_text.splitlines()
-                if any(w in l.lower() for w in ("sales", "profit", "assets", "liabilities", "cash", "income", "equity"))
+                if any(w in l.lower() for w in ("sales", "profit", "assets", "liabilities", "cash", "income", "equity", "revenue", "budget", "cost"))
                 and any(c.isdigit() for c in l)
             ]
             if fin_lines:
-                lines.append("Key Financial Line Items from Document:")
-                for fl in fin_lines[:6]:
+                lines.append("Key Financial Line Items Extracted from Document:")
+                for fl in fin_lines[:8]:
                     lines.append(f"- {fl}")
             else:
-                lines.append(
-                    "The uploaded document has been indexed. Ask a specific question about revenue, "
-                    "annual profit, balance sheet assets, or expenses to view detailed figures."
-                )
+                # Narrative document extraction (e.g., proposal, presentation, business plan)
+                doc_lines = [
+                    l.strip() for l in context_text.splitlines()
+                    if l.strip() and not l.strip().startswith("===") and len(l.strip()) > 15
+                ]
+                if doc_lines:
+                    lines.append("Document Summary & Core Content:")
+                    for dl in doc_lines[:6]:
+                        lines.append(f"- {dl}")
+                else:
+                    lines.append(
+                        f"Document content for {company_display} indexed successfully. "
+                        "Ask any question regarding revenue, expenses, operations, or key findings."
+                    )
 
         return "\n".join(lines)

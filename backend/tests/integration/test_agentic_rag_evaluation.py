@@ -69,7 +69,8 @@ def test_dashboard_metrics_change_dynamically_per_uploaded_document(client: Test
 
     ratios1 = {r["name"]: r["value"] for r in d1["ratios"]}
     assert 0.05 <= ratios1["net_margin_pct"] <= 12.0
-    assert 1.2 <= ratios1["debt_to_equity"] <= 1.6
+    assert 0.35 <= ratios1["debt_to_equity"] <= 0.60
+    assert 1.1 <= ratios1["total_liabilities_to_equity"] <= 1.6
 
     # --- Phase 2: Upload State Bank of India ---
     with open(SBI_PATH, "rb") as f:
@@ -103,7 +104,8 @@ def test_dashboard_metrics_change_dynamically_per_uploaded_document(client: Test
     ratios2 = {r["name"]: r["value"] for r in d2["ratios"]}
     assert ratios2["net_margin_pct"] != ratios1["net_margin_pct"]
     assert 12.0 <= ratios2["net_margin_pct"] <= 20.0  # SBI net margin ~16.1%
-    assert ratios2["debt_to_equity"] > 5.0  # Banking leverage ratio > 10x
+    assert ratios2["total_liabilities_to_equity"] > 10.0  # Banking total leverage > 10x
+    assert 10.0 <= ratios2["debt_to_equity"] <= 13.0  # SBI reported borrowings/equity ~11.4x
 
 
 @pytest.mark.skipif(not (RELIANCE_PATH.exists() and SBI_PATH.exists()), reason="Corporate workbooks not found")

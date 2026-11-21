@@ -99,22 +99,24 @@ class BudgetVarianceResponse(BaseModel):
 
 
 class BalanceSheetIn(BaseModel):
-    cash: float
-    accounts_receivable: float
-    inventory: float
-    other_current_assets: float
-    total_current_assets: float
-    total_assets: float
-    total_current_liabilities: float
-    total_liabilities: float
-    total_equity: float
+    cash: float | None = None
+    accounts_receivable: float | None = None
+    inventory: float | None = None
+    other_current_assets: float | None = None
+    total_current_assets: float | None = None
+    total_assets: float = 0.0
+    total_current_liabilities: float | None = None
+    total_liabilities: float = 0.0
+    total_equity: float = 0.0
+    borrowings: float | None = None
 
 
 class IncomeStatementIn(BaseModel):
-    revenue: float
-    cogs: float
-    operating_expenses: float
-    net_income: float
+    revenue: float = 0.0
+    cogs: float | None = None
+    operating_expenses: float = 0.0
+    net_income: float = 0.0
+    operating_profit: float | None = None
 
 
 class RatioOut(BaseModel):

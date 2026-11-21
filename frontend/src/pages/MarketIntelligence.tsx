@@ -956,7 +956,8 @@ export function MarketIntelligence() {
             const holdingQuantity = currentPrice ? Math.floor(investAmount / currentPrice) : null;
             const holdingCost = holdingQuantity !== null && currentPrice ? holdingQuantity * currentPrice : null;
             const residualCash = holdingCost !== null ? investAmount - holdingCost : null;
-            const intervalWidth = prediction.upper_bound != null && prediction.lower_bound != null
+            const intervalWidth = prediction.upper_bound !== null && prediction.upper_bound !== undefined
+              && prediction.lower_bound !== null && prediction.lower_bound !== undefined
               ? prediction.upper_bound - prediction.lower_bound
               : null;
 
@@ -1031,7 +1032,8 @@ export function MarketIntelligence() {
                 )}
 
                 {/* Confidence interval bar */}
-                {prediction.lower_bound != null && prediction.upper_bound != null && (
+                {prediction.lower_bound !== null && prediction.lower_bound !== undefined
+                  && prediction.upper_bound !== null && prediction.upper_bound !== undefined && (
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-muted)", marginBottom: 4 }}>
                       95% Confidence Interval

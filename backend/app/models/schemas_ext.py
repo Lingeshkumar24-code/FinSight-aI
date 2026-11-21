@@ -29,6 +29,7 @@ class FinancialRecordIn(BaseModel):
     operating_cash_flow: float | None = None
     investing_cash_flow: float | None = None
     financing_cash_flow: float | None = None
+    net_cash_flow: float | None = None
     opening_cash: float | None = None
     closing_cash: float | None = None
     source: str = "manual"

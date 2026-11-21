@@ -43,7 +43,7 @@ describe("AIAdvisor", () => {
     await waitFor(() =>
       expect(screen.getByTestId("chat-log")).toHaveTextContent("Marketing overspent by 30%.")
     );
-    expect(api.askAdvisor).toHaveBeenCalledWith("Did we overspend on marketing?");
+    expect(api.askAdvisor).toHaveBeenCalledWith("Did we overspend on marketing?", undefined);
   });
 
   it("shows a graceful error message if the request fails", async () => {

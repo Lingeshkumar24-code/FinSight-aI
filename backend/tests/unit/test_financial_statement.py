@@ -24,6 +24,7 @@ def healthy_balance_sheet() -> BalanceSheet:
         total_current_liabilities=40_000,
         total_liabilities=90_000,
         total_equity=160_000,
+        borrowings=90_000,
     )
 
 
@@ -88,6 +89,7 @@ def test_zero_liabilities_debt_to_equity_is_zero_not_error(engine, healthy_incom
         total_current_liabilities=0,
         total_liabilities=0,
         total_equity=10_000,
+        borrowings=0,
     )
     results = engine.compute(bs, healthy_income_statement)
     assert _ratio(results, "debt_to_equity").value == 0.0

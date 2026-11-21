@@ -112,6 +112,7 @@ class FinancialRecord(Base):
     operating_cash_flow: Mapped[float | None] = mapped_column(Float, nullable=True)
     investing_cash_flow: Mapped[float | None] = mapped_column(Float, nullable=True)
     financing_cash_flow: Mapped[float | None] = mapped_column(Float, nullable=True)
+    net_cash_flow: Mapped[float | None] = mapped_column(Float, nullable=True)
     opening_cash: Mapped[float | None] = mapped_column(Float, nullable=True)
     closing_cash: Mapped[float | None] = mapped_column(Float, nullable=True)
     source: Mapped[str] = mapped_column(String, default="manual")

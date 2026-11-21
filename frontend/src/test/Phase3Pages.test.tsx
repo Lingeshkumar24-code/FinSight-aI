@@ -85,9 +85,11 @@ describe("Phase 3 money management page", () => {
     mockPageApis();
     render(<MoneyManagement />);
     expect(await screen.findByTestId("money-page")).toBeInTheDocument();
-    expect(screen.getByText("₹5,000")).toBeInTheDocument();
-    expect(screen.getByText(/1.25 mo/)).toBeInTheDocument();
-    expect(screen.getByText("Maintain current leverage")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("₹5,000")).toBeInTheDocument();
+      expect(screen.getByText(/1.25 mo/)).toBeInTheDocument();
+      expect(screen.getByText("Maintain current leverage")).toBeInTheDocument();
+    });
     vi.restoreAllMocks();
   });
 
