@@ -310,26 +310,17 @@ class AgenticRAGEngine:
 
     def _extract_metrics(self, all_text: str) -> dict[str, Any]:
         """Extract key figures from retrieved chunks dynamically."""
-        text_upper = all_text.upper()
-        is_reliance = "RELIANCE" in text_upper
-        is_sbi = "STATE BANK" in text_upper or "SBIN" in text_upper or "SBI" in text_upper or "SBI.XLSX" in text_upper
-        is_aarohan = ("AAROHAN" in text_upper or "24463535" in all_text) and not is_reliance and not is_sbi
-
+        # Company name must be derived only from this document's own content.
+        # No company-name-keyed branching: identical logic must run regardless
+        # of which company the uploaded document happens to describe.
         company = "FinSight Business"
-        if is_reliance:
-            company = "RELIANCE INDUSTRIES LTD"
-        elif is_sbi:
-            company = "State Bank of India (SBI)"
-        elif is_aarohan:
-            company = "Aarohan Consumer Products Private Limited"
+        m_comp = re.search(r"COMPANY NAME\s*\|\s*([^\|\n]+)", all_text, re.IGNORECASE)
+        if m_comp:
+            company = m_comp.group(1).strip()
         else:
-            m_comp = re.search(r"COMPANY NAME\s*\|\s*([^\|\n]+)", all_text, re.IGNORECASE)
-            if m_comp:
-                company = m_comp.group(1).strip()
-            else:
-                m_row1 = re.search(r"Row 1:\s*([A-Z0-9\s.,&-]+(?:LTD|LIMITED|PVT|INC|CORP))", all_text)
-                if m_row1:
-                    company = m_row1.group(1).strip()
+            m_row1 = re.search(r"Row 1:\s*([A-Z0-9\s.,&-]+(?:LTD|LIMITED|PVT|INC|CORP))", all_text)
+            if m_row1:
+                company = m_row1.group(1).strip()
 
         m: dict[str, Any] = {
             "company": company,
@@ -343,202 +334,185 @@ class AgenticRAGEngine:
             "share_price": None,
         }
 
-        # 1. Aarohan extraction
-        if is_aarohan:
-            m["cash_balance"] = 2350000.0 if "2350000" in all_text else 2350000.0
-            m["total_debt"] = 2810000.0 if "2810000" in all_text else 2810000.0
-            m["loans"] = [
-                {"id": "LN-001", "lender": "Demo National Bank", "type": "Term Loan", "principal": 3000000, "rate": "11.5%", "emi": 82000, "outstanding": 1680000, "status": "Active"},
-                {"id": "LN-002", "lender": "Demo Urban Finance", "type": "Working Capital", "principal": 1000000, "rate": "12.5%", "emi": 26500, "outstanding": 520000, "status": "Active"},
-                {"id": "LN-003", "lender": "Demo Co-operative Bank", "type": "Equipment Loan", "principal": 800000, "rate": "10.5%", "emi": 17500, "outstanding": 610000, "status": "Active"},
-            ]
-            m["total_monthly_emi"] = 126000
-            m["pnl"] = {
-                "FY24": {"revenue": 24463535, "gross_profit": 9123670, "opex": 15882497, "net_loss": -7385587},
-                "FY25": {"revenue": 35790797, "gross_profit": 13375307, "opex": 20355841, "net_loss": -7763984},
-                "FY26": {"revenue": 41782093, "gross_profit": 15561133, "opex": 20992285, "net_loss": -6214602},
-            }
-            m["monthly_opex_run_rate"] = 1750000
-
-        # 2. Comprehensive universal extraction from tabular text
-        else:
-            # 4a. Identify company name from text if still default
-            if company == "FinSight Business":
-                for cand in [
-                    re.search(r"([A-Za-z0-9\s.,&'-]+?(?:INFRASTRUCTURE|INFRA|POWER|STEEL|MOTORS|FINANCE|BANK|LTD|LIMITED|PVT|ENTERPRISES))", all_text, re.IGNORECASE),
-                    re.search(r"Row 1:\s*([A-Za-z0-9\s.,&'-]+)", all_text),
-                ]:
-                    if cand:
-                        c_text = cand.group(1).strip()
-                        if len(c_text) >= 4 and not c_text.startswith("===") and "sheet" not in c_text.lower():
-                            company = c_text
-                            m["company"] = company
-                            break
-
-            # 4b. Extract periods / years header from table rows
-            periods: list[str] = []
-            for line in all_text.splitlines():
-                if any(k in line.lower() for k in ("mar 20", "jun 20", "sep 20", "dec 20", "fy2", "fy 2", "201", "202")):
-                    year_matches = re.findall(r"(?:Mar|Jun|Sep|Dec|FY)?\s*20\d\d(?:\s*-\s*\d\d)?", line, re.IGNORECASE)
-                    if len(year_matches) >= 3:
-                        periods = [y.strip() for y in year_matches]
+        # Extract line items directly from retrieved document content.
+        # (No company-specific branch: identical logic for every document.)
+        # 4a. Identify company name from text if still default
+        if company == "FinSight Business":
+            for cand in [
+                re.search(r"([A-Za-z0-9\s.,&'-]+?(?:INFRASTRUCTURE|INFRA|POWER|STEEL|MOTORS|FINANCE|BANK|LTD|LIMITED|PVT|ENTERPRISES))", all_text, re.IGNORECASE),
+                re.search(r"Row 1:\s*([A-Za-z0-9\s.,&'-]+)", all_text),
+            ]:
+                if cand:
+                    c_text = cand.group(1).strip()
+                    if len(c_text) >= 4 and not c_text.startswith("===") and "sheet" not in c_text.lower():
+                        company = c_text
+                        m["company"] = company
                         break
 
-            # 4c. Line item parser helper
-            def _extract_row_numbers(row_text: str) -> list[float]:
-                nums: list[float] = []
-                tokens = row_text.split("|")
-                # Look in each cell after the label
-                for token in tokens[1:]:
-                    token = token.strip()
-                    if not token or token in ("-", "--", "NA", "N/A", "nil"):
-                        continue
-                    token = token.split("(formula:")[0].strip()
-                    if not token:
-                        continue
-                    is_paren = token.startswith("(") and token.endswith(")")
-                    clean = re.sub(r"[^\d.-]", "", token)
+        # 4b. Extract periods / years header from table rows
+        periods: list[str] = []
+        for line in all_text.splitlines():
+            if any(k in line.lower() for k in ("mar 20", "jun 20", "sep 20", "dec 20", "fy2", "fy 2", "201", "202")):
+                year_matches = re.findall(r"(?:Mar|Jun|Sep|Dec|FY)?\s*20\d\d(?:\s*-\s*\d\d)?", line, re.IGNORECASE)
+                if len(year_matches) >= 3:
+                    periods = [y.strip() for y in year_matches]
+                    break
+
+        # 4c. Line item parser helper
+        def _extract_row_numbers(row_text: str) -> list[float]:
+            nums: list[float] = []
+            tokens = row_text.split("|")
+            # Look in each cell after the label
+            for token in tokens[1:]:
+                token = token.strip()
+                if not token or token in ("-", "--", "NA", "N/A", "nil"):
+                    continue
+                token = token.split("(formula:")[0].strip()
+                if not token:
+                    continue
+                is_paren = token.startswith("(") and token.endswith(")")
+                clean = re.sub(r"[^\d.-]", "", token)
+                try:
+                    val = float(clean)
+                    nums.append(-abs(val) if is_paren else val)
+                except ValueError:
+                    pass
+            if not nums:
+                body = re.sub(r"^Row\s*\d+:[^|:]*[|:]", "", row_text)
+                raw_nums = re.findall(r"(?:\((?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?\)|-?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?)", body)
+                for rn in raw_nums:
+                    is_paren = rn.startswith("(") and rn.endswith(")")
+                    clean = re.sub(r"[^\d.-]", "", rn)
                     try:
                         val = float(clean)
                         nums.append(-abs(val) if is_paren else val)
                     except ValueError:
                         pass
-                if not nums:
-                    body = re.sub(r"^Row\s*\d+:[^|:]*[|:]", "", row_text)
-                    raw_nums = re.findall(r"(?:\((?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?\)|-?(?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d+)?)", body)
-                    for rn in raw_nums:
-                        is_paren = rn.startswith("(") and rn.endswith(")")
-                        clean = re.sub(r"[^\d.-]", "", rn)
-                        try:
-                            val = float(clean)
-                            nums.append(-abs(val) if is_paren else val)
-                        except ValueError:
-                            pass
-                return nums
+            return nums
 
-            # 4d. Scan lines for financial line items
-            pnl_extracted: dict[str, dict[str, float]] = {}
-            for line in all_text.splitlines():
-                line_lower = line.lower()
+        # 4d. Scan lines for financial line items
+        pnl_extracted: dict[str, dict[str, float]] = {}
+        for line in all_text.splitlines():
+            line_lower = line.lower()
 
-                # Net Profit / PAT (Must check before general profit)
-                if any(k in line_lower for k in ("net profit", "pat", "profit after tax", "profit / (loss)", "net income", "loss for the")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["net_profit_sample"] = nums
-                        if periods and len(periods) == len(nums):
-                            for p, n in zip(periods, nums):
-                                pnl_extracted.setdefault(p, {})["net_profit"] = n
+            # Net Profit / PAT (Must check before general profit)
+            if any(k in line_lower for k in ("net profit", "pat", "profit after tax", "profit / (loss)", "net income", "loss for the")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["net_profit_sample"] = nums
+                    if periods and len(periods) == len(nums):
+                        for p, n in zip(periods, nums):
+                            pnl_extracted.setdefault(p, {})["net_profit"] = n
 
-                # Sales / Revenue
-                elif any(k in line_lower for k in ("sales", "revenue", "turnover", "total income", "revenue from operations")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["revenue_sample"] = nums
-                        if periods and len(periods) == len(nums):
-                            for p, n in zip(periods, nums):
-                                pnl_extracted.setdefault(p, {})["revenue"] = n
+            # Sales / Revenue
+            elif any(k in line_lower for k in ("sales", "revenue", "turnover", "total income", "revenue from operations")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["revenue_sample"] = nums
+                    if periods and len(periods) == len(nums):
+                        for p, n in zip(periods, nums):
+                            pnl_extracted.setdefault(p, {})["revenue"] = n
 
-                # Operating Profit / EBITDA
-                elif any(k in line_lower for k in ("operating profit", "ebitda", "pbit", "operating income", "ebit")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["operating_profit_sample"] = nums
-                        if periods and len(periods) == len(nums):
-                            for p, n in zip(periods, nums):
-                                pnl_extracted.setdefault(p, {})["operating_profit"] = n
+            # Operating Profit / EBITDA
+            elif any(k in line_lower for k in ("operating profit", "ebitda", "pbit", "operating income", "ebit")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["operating_profit_sample"] = nums
+                    if periods and len(periods) == len(nums):
+                        for p, n in zip(periods, nums):
+                            pnl_extracted.setdefault(p, {})["operating_profit"] = n
 
-                # Total Assets
-                elif any(k in line_lower for k in ("total assets", "balance sheet total", "total equity and liabilities")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["assets_sample"] = nums
+            # Total Assets
+            elif any(k in line_lower for k in ("total assets", "balance sheet total", "total equity and liabilities")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["assets_sample"] = nums
 
-                # Borrowings / Debt
-                elif any(k in line_lower for k in ("borrowings", "total debt", "long term debt", "short term debt", "total liabilities")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["liabilities_sample"] = nums
-                        m["total_debt"] = nums[-1]
+            # Borrowings / Debt
+            elif any(k in line_lower for k in ("borrowings", "total debt", "long term debt", "short term debt", "total liabilities")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["liabilities_sample"] = nums
+                    m["total_debt"] = nums[-1]
 
-                # Cash & Bank
-                elif any(k in line_lower for k in ("cash & bank", "cash and bank", "cash and cash equivalents", "bank balance", "closing cash")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["cash_sample"] = nums
-                        m["cash_balance"] = nums[-1]
+            # Cash & Bank
+            elif any(k in line_lower for k in ("cash & bank", "cash and bank", "cash and cash equivalents", "bank balance", "closing cash")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["cash_sample"] = nums
+                    m["cash_balance"] = nums[-1]
 
-                # Equity / Net Worth
-                elif any(k in line_lower for k in ("equity capital", "equity share capital", "share capital", "net worth", "shareholders funds")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["equity_sample"] = nums
-                        m["equity_share_capital"] = nums[-1]
+            # Equity / Net Worth
+            elif any(k in line_lower for k in ("equity capital", "equity share capital", "share capital", "net worth", "shareholders funds")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["equity_sample"] = nums
+                    m["equity_share_capital"] = nums[-1]
 
-                # Reserves
-                elif any(k in line_lower for k in ("reserves", "retained earnings", "other equity")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["reserves_sample"] = nums
-                        m["reserves"] = nums[-1]
+            # Reserves
+            elif any(k in line_lower for k in ("reserves", "retained earnings", "other equity")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["reserves_sample"] = nums
+                    m["reserves"] = nums[-1]
 
-                # Operating Cash Flow
-                elif any(k in line_lower for k in ("cash from operating activity", "operating cash flow", "cash flow from operations")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["operating_cash_flow_sample"] = nums
-                        m["operating_cash_flow"] = nums[-1]
+            # Operating Cash Flow
+            elif any(k in line_lower for k in ("cash from operating activity", "operating cash flow", "cash flow from operations")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["operating_cash_flow_sample"] = nums
+                    m["operating_cash_flow"] = nums[-1]
 
-                # Market Capitalization
-                elif any(k in line_lower for k in ("market capitalization", "market cap", "mcap")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["market_cap"] = nums[0]
+            # Market Capitalization
+            elif any(k in line_lower for k in ("market capitalization", "market cap", "mcap")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["market_cap"] = nums[0]
 
-                # Current Price / Share Price
-                elif any(k in line_lower for k in ("current price", "share price", "stock price", "cmp")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["share_price"] = nums[0]
+            # Current Price / Share Price
+            elif any(k in line_lower for k in ("current price", "share price", "stock price", "cmp")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["share_price"] = nums[0]
 
-                # Price to Earning / P/E Ratio
-                elif any(k in line_lower for k in ("price to earning", "stock p/e", "p/e ratio")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["pe_ratio"] = nums[-1]
+            # Price to Earning / P/E Ratio
+            elif any(k in line_lower for k in ("price to earning", "stock p/e", "p/e ratio")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["pe_ratio"] = nums[-1]
 
-                # Book Value
-                elif any(k in line_lower for k in ("book value", "bvps")):
-                    nums = _extract_row_numbers(line)
-                    if nums:
-                        m["book_value"] = nums[-1]
+            # Book Value
+            elif any(k in line_lower for k in ("book value", "bvps")):
+                nums = _extract_row_numbers(line)
+                if nums:
+                    m["book_value"] = nums[-1]
 
-            if pnl_extracted:
-                m["pnl"] = pnl_extracted
-                m["periods"] = periods
+        if pnl_extracted:
+            m["pnl"] = pnl_extracted
+            m["periods"] = periods
 
-            # Fallback regex extraction from full text if not found in table scan
-            if m.get("market_cap") is None:
-                m_cap = re.search(r"Market Capitalization\s*\|\s*([\d,.]+)", all_text, re.IGNORECASE)
-                if m_cap:
-                    try:
-                        m["market_cap"] = float(re.sub(r"[^\d.]", "", m_cap.group(1)))
-                    except ValueError:
-                        pass
-            if m.get("share_price") is None:
-                m_pr = re.search(r"Current Price\s*\|\s*([\d,.]+)", all_text, re.IGNORECASE)
-                if m_pr:
-                    try:
-                        m["share_price"] = float(re.sub(r"[^\d.]", "", m_pr.group(1)))
-                    except ValueError:
-                        pass
-            if m.get("pe_ratio") is None:
-                m_pe = re.search(r"Price to [Ee]arning\s*\|\s*([\d,.]+)", all_text, re.IGNORECASE)
-                if m_pe:
-                    try:
-                        m["pe_ratio"] = float(re.sub(r"[^\d.]", "", m_pe.group(1)))
-                    except ValueError:
-                        pass
+        # Fallback regex extraction from full text if not found in table scan
+        if m.get("market_cap") is None:
+            m_cap = re.search(r"Market Capitalization\s*\|\s*([\d,.]+)", all_text, re.IGNORECASE)
+            if m_cap:
+                try:
+                    m["market_cap"] = float(re.sub(r"[^\d.]", "", m_cap.group(1)))
+                except ValueError:
+                    pass
+        if m.get("share_price") is None:
+            m_pr = re.search(r"Current Price\s*\|\s*([\d,.]+)", all_text, re.IGNORECASE)
+            if m_pr:
+                try:
+                    m["share_price"] = float(re.sub(r"[^\d.]", "", m_pr.group(1)))
+                except ValueError:
+                    pass
+        if m.get("pe_ratio") is None:
+            m_pe = re.search(r"Price to [Ee]arning\s*\|\s*([\d,.]+)", all_text, re.IGNORECASE)
+            if m_pe:
+                try:
+                    m["pe_ratio"] = float(re.sub(r"[^\d.]", "", m_pe.group(1)))
+                except ValueError:
+                    pass
 
         return m
 
@@ -547,52 +521,13 @@ class AgenticRAGEngine:
     ) -> str:
         """Produce an expert, executive CFO analysis and concrete decision grounded in facts."""
         company = m.get("company", "")
-        is_reliance = "reliance" in company.lower() or "reliance" in query.lower() or "RELIANCE" in context_text.upper()
-        is_sbi = "sbi" in company.lower() or "state bank" in company.lower() or "sbi" in query.lower() or "bank" in query.lower() or "SBI" in context_text or "STATE BANK" in context_text.upper()
-        is_aarohan = ("aarohan" in company.lower() or "LN-001" in context_text) and not is_reliance and not is_sbi
-
-        is_aarohan = ("LN-001" in context_text or "aarohan" in company.lower()) and intent in (FinancialIntent.LOAN_DECISION, FinancialIntent.STOCK_INVESTMENT)
-
-        if is_aarohan:
-            if intent == FinancialIntent.LOAN_DECISION:
-                return (
-                    "Financial Evaluation — Debt Capacity & Loan Advisory:\n\n"
-                    "1. Current Borrowing & Debt Commitments:\n"
-                    "- Active Loan LN-001 (Demo National Bank): ₹16,80,000 outstanding (Term Loan, 11.5% interest, EMI ₹82,000/mo)\n"
-                    "- Active Loan LN-002 (Demo Urban Finance): ₹5,20,000 outstanding (Working Capital, 12.5% interest, EMI ₹26,500/mo)\n"
-                    "- Active Loan LN-003 (Demo Co-operative Bank): ₹6,10,000 outstanding (Equipment Loan, 10.5% interest, EMI ₹17,500/mo)\n"
-                    "- Total Outstanding Debt: ₹28,10,000 across 3 active facilities\n"
-                    "- Total Monthly Debt Burden (EMI): ₹1,26,000 per month (₹15,12,000 annual debt service)\n\n"
-                    "2. Cash Flow & Solvency Analysis:\n"
-                    "- Closing Cash Reserves: ₹23,50,000 (~₹23.5 Lakh)\n"
-                    "- Operating Cash Flow: Currently negative with annual net loss of ~₹62.1 Lakh in FY26 and high opex (₹2.10 Cr)\n"
-                    "- Debt Service Coverage: Existing ₹1.26L/month EMI already consumes substantial operating liquidity.\n\n"
-                    "3. Recommendation & Decision:\n"
-                    "**DECISION: DO NOT TAKE AN ADDITIONAL COMMERCIAL LOAN AT THIS TIME.**\n"
-                    "Taking on further debt will increase your fixed monthly EMI load while operating cash flow is currently negative. "
-                    "Instead, prioritize collecting ₹6,61,953 in trade receivables and improving gross margins. Only consider low-interest "
-                    "concessional or asset-backed financing if it directly generates immediate positive cash flow."
-                )
-
-            if intent == FinancialIntent.STOCK_INVESTMENT:
-                return (
-                    "Financial Evaluation — Cash Surplus & Stock Market Investment:\n\n"
-                    "1. Liquidity & Cash Buffer Analysis:\n"
-                    "- Current Cash & Cash Equivalents: ₹23,50,000 (~₹23.5 Lakh)\n"
-                    "- Monthly Operating Expense Run-Rate: ~₹17,00,000 to ₹17,50,000 per month\n"
-                    "- Effective Cash Runway: Approximately 1.3 to 1.5 months of operating expenses\n\n"
-                    "2. Prudent Capital Allocation Guidelines:\n"
-                    "- Standard financial governance requires maintaining a minimum 3 to 6-month operating cash buffer (₹50 Lakh to ₹1 Crore) before allocating company capital to volatile equities.\n"
-                    "- Current cash of ₹23.5 Lakh is fully required for immediate working capital, supplier payments, and monthly debt service (₹1.26 Lakh/month).\n\n"
-                    "3. Recommendation & Decision:\n"
-                    "**DECISION: DO NOT INVEST IN EQUITY STOCKS WITH YOUR CURRENT OPERATING FUNDS.**\n\n"
-                    "Recommended Financial Action Plan:\n"
-                    "- Short-Term Yield: Place idle operational funds exclusively in Overnight Liquid Mutual Funds or Bank Auto-Sweep/Fixed Deposits earning 6.5%–7.0% p.a. with instant T+0/T+1 liquidity.\n"
-                    "- Equity Stock Allocation: Defer equity investments until your cash balance surpasses ₹60 Lakh (providing a comfortable 4+ month reserve) and net operating cash flow turns positive."
-                )
+        # No company-name-keyed branching here: every uploaded business —
+        # regardless of name — is evaluated through the same evidence-driven
+        # path below, using only values actually extracted from its own
+        # retrieved content (see Case C).
 
         # -------------------------------------------------------------
-        # Case C: Generic / Other Uploaded Business
+        # Case C: Generic / Any Uploaded Business
         # -------------------------------------------------------------
         company_display = company if company != "FinSight Business" else "Uploaded Filing"
         pnl = m.get("pnl", {})

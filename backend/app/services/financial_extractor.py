@@ -96,7 +96,7 @@ def extract_financial_records_from_workbook(
 def _extract_screener_format(
     wb: openpyxl.Workbook, lower_sheets: dict[str, str]
 ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
-    company_name = "Reliance Industries Ltd"
+    company_name = ""
     if "data sheet" in lower_sheets:
         ds = wb[lower_sheets["data sheet"]]
         for r in range(1, min(5, ds.max_row + 1)):
@@ -116,7 +116,7 @@ def _extract_screener_format(
     ws_cf = wb[lower_sheets[cf_key]] if cf_key else None
 
     # Find company name from Row 1 if not yet found
-    if company_name == "Reliance Industries Ltd":
+    if not company_name:
         v1 = ws_inc.cell(1, 1).value
         if v1 and str(v1).strip():
             company_name = str(v1).strip()
@@ -382,7 +382,7 @@ def _extract_from_data_sheet(
             "operating_cash_flow": cfo,
             "investing_cash_flow": cfi,
             "financing_cash_flow": cff,
-            "notes": f"Extracted from corporate filing for {company_name}",
+            "notes": f"Extracted from corporate filing for {company_name or 'the uploaded document'}",
         })
 
         cashflows.append({
@@ -405,16 +405,14 @@ def _extract_from_data_sheet(
 def _extract_synthetic_format(
     wb: openpyxl.Workbook, lower_sheets: dict[str, str]
 ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
-    company_name = "Aarohan Consumer Products Private Limited"
+    company_name = ""
     if "start here" in lower_sheets:
         ws_start = wb[lower_sheets["start here"]]
         for r in range(1, min(10, ws_start.max_row + 1)):
             v = str(ws_start.cell(r, 1).value or "")
-            if "aarohan" in v.lower():
-                company_name = "Aarohan Consumer Products Private Limited"
-                break
-            elif "company" in v.lower() and ":" in v:
+            if "company" in v.lower() and ":" in v:
                 company_name = v.split(":")[-1].strip()
+                break
 
     pnl_sheet_name = next((s for k, s in lower_sheets.items() if "annual p&l" in k or "p&l" in k), None)
     if not pnl_sheet_name:
@@ -505,7 +503,7 @@ def _extract_synthetic_format(
             "operating_cash_flow": op_cf,
             "investing_cash_flow": -500000.0,
             "financing_cash_flow": -300000.0,
-            "notes": f"Extracted from ERP dataset for {company_name}",
+            "notes": f"Extracted from ERP dataset for {company_name or 'the uploaded document'}",
         }
         records.append(rec)
 
