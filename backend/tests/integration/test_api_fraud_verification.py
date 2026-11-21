@@ -1,4 +1,7 @@
 from fastapi.testclient import TestClient
+from io import BytesIO
+from openpyxl import Workbook
+import uuid
 
 
 def test_fraud_upload_alerts_review_and_summary(client: TestClient, auth_headers: dict[str, str]) -> None:
@@ -18,6 +21,7 @@ def test_fraud_upload_alerts_review_and_summary(client: TestClient, auth_headers
     assert result["valid"] == 3
     assert result["alerts_created"] >= 1
     assert result["summary"]["high_risk_alerts"] >= 1
+    assert result["assessment"] == "review_required"
 
     alerts = client.get("/api/v1/fraud/alerts", headers=auth_headers)
     assert alerts.status_code == 200
@@ -39,6 +43,28 @@ def test_fraud_upload_alerts_review_and_summary(client: TestClient, auth_headers
     transactions = client.get("/api/v1/fraud/transactions?limit=10", headers=auth_headers)
     assert transactions.status_code == 200
     assert any(item["transaction_id"] == "FR-002" for item in transactions.json())
+
+
+def test_fraud_upload_accepts_excel_and_reports_file_assessment(client: TestClient, auth_headers: dict[str, str]) -> None:
+    unique_id = uuid.uuid4().hex
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["Transaction ID", "Date", "Amount", "Vendor", "Reference"])
+    sheet.append([f"EX-{unique_id}", "2026-11-01", 125.0, f"Acme-{unique_id}", f"INV-{unique_id}"])
+    contents = BytesIO()
+    workbook.save(contents)
+
+    uploaded = client.post(
+        "/api/v1/fraud/transactions/upload",
+        files={"file": ("statement.xlsx", contents.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        headers=auth_headers,
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    result = uploaded.json()
+    assert result["file_name"] == "statement.xlsx"
+    assert result["valid"] == 1
+    assert result["assessment"] == "no_indicators_found"
+    assert "does not prove" in result["assessment_note"]
 
 
 def test_document_verification_and_field_confirmation(client: TestClient, auth_headers: dict[str, str]) -> None:

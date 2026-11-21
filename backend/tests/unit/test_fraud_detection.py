@@ -1,4 +1,9 @@
-from app.engines.fraud_detection import detect_fraud, parse_transaction_csv, summarize_fraud
+from datetime import datetime
+from io import BytesIO
+
+from openpyxl import Workbook
+
+from app.engines.fraud_detection import detect_fraud, parse_transaction_csv, parse_transaction_file, summarize_fraud
 
 
 def test_parse_and_detect_fraud() -> None:
@@ -20,7 +25,7 @@ def test_parse_and_detect_fraud() -> None:
 
     summary = summarize_fraud(records, alerts)
     assert summary["total_transactions"] == 3
-    assert summary["duplicate_count"] >= 2
+    assert summary["duplicate_count"] == 1
     assert summary["high_risk_alerts"] >= 1
     assert summary["alerts"] == alerts
 
@@ -35,4 +40,43 @@ def test_vendor_baseline_detection() -> None:
     alerts = detect_fraud(records)
     outlier = next(item for item in alerts if item["transaction_id"] == "V-9")
     assert outlier["risk_level"] == "high"
-    assert "vendor_baseline" in outlier["detection_method"]
+    assert "vendor_amount_outlier" in outlier["detection_method"]
+
+
+def test_parse_excel_workbook_multiple_sheets_and_header_aliases() -> None:
+    workbook = Workbook()
+    first = workbook.active
+    first.title = "Statement"
+    first.append(["Bank export for review"])
+    first.append(["Txn ID", "Transaction Date", "Debit Amount", "Payee", "Invoice Number"])
+    first.append(["TX-01", datetime(2026, 11, 1), 1250.50, "Acme", "INV-1"])
+    second = workbook.create_sheet("Other")
+    second.append(["Notes", "Owner"])
+    output = BytesIO()
+    workbook.save(output)
+
+    records, errors = parse_transaction_file(output.getvalue(), "statement.xlsx")
+    assert errors == []
+    assert records == [{
+        "transaction_id": "TX-01",
+        "date": "2026-11-01",
+        "amount": -1250.5,
+        "vendor": "Acme",
+        "transaction_type": "debit",
+        "reference": "INV-1",
+    }]
+
+
+def test_parser_rejects_non_transaction_document_without_claiming_clear() -> None:
+    records, errors = parse_transaction_file(b"hello,world\nnot,a,transaction\n", "note.csv")
+    assert records == []
+    assert errors and "no transaction table found" in errors[0]
+    assert parse_transaction_file(b"date,amount\n2026-01-01,20\n", "notes.pdf")[0] == []
+
+
+def test_small_vendor_sample_does_not_trigger_statistical_outlier() -> None:
+    records = [
+        {"transaction_id": f"S-{i}", "date": f"2026-11-0{i + 1}", "amount": value, "vendor": "OneVendor", "reference": str(i)}
+        for i, value in enumerate([10, 20, 100])
+    ]
+    assert detect_fraud(records) == []

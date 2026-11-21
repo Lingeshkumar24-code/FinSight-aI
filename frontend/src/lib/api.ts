@@ -545,6 +545,9 @@ export interface FraudTransaction {
 
 export interface FraudUpload {
   batch_id: string;
+  file_name: string;
+  assessment: "review_required" | "no_indicators_found" | "unable_to_assess";
+  assessment_note: string;
   received: number;
   valid: number;
   invalid: number;
@@ -1027,11 +1030,12 @@ export const api = {
     }),
 
   generateReport: (payload: {
-    business_name: string;
     period: string;
-    ratios: RatioOut[];
-    risk?: RiskResponse;
     notes: string;
+    /** Compatibility fields for a locally running older API; the current API ignores these. */
+    business_name?: string;
+    ratios?: RatioOut[];
+    risk?: RiskResponse;
   }) =>
     request<Blob>("/reports/generate", {
       method: "POST",

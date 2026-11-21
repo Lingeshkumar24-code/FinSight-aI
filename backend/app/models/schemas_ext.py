@@ -404,6 +404,9 @@ class FraudTransactionOut(BaseModel):
 
 class FraudUploadOut(BaseModel):
     batch_id: str
+    file_name: str
+    assessment: str
+    assessment_note: str
     received: int
     valid: int
     invalid: int

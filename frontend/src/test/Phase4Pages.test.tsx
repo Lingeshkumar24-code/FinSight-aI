@@ -30,7 +30,9 @@ const transaction: FraudTransaction = {
 };
 
 const uploadResult: FraudUpload = {
-  batch_id: "batch-2", received: 1, valid: 1, invalid: 0, validation_errors: [], alerts_created: 1,
+  batch_id: "batch-2", file_name: "fraud.csv", assessment: "review_required",
+  assessment_note: "Configured risk indicators were found.", received: 1, valid: 1, invalid: 0,
+  validation_errors: [], alerts_created: 1,
   summary,
 };
 
@@ -72,9 +74,31 @@ describe("Phase 4 trust pages", () => {
     render(<FraudDetection />);
     expect(await screen.findByTestId("fraud-page")).toBeInTheDocument();
     const file = new File(["transaction_id,date,amount,vendor\nFR-9,2026-11-19,-100,Shop"], "fraud.csv", { type: "text/csv" });
-    fireEvent.change(screen.getByLabelText("Fraud transaction CSV"), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText("Fraud transaction file"), { target: { files: [file] } });
     await waitFor(() => expect(upload).toHaveBeenCalledWith(file));
-    expect(await screen.findByText(/1 alerts from 1 valid rows/)).toBeInTheDocument();
+    expect(await screen.findByTestId("fraud-file-assessment")).toHaveTextContent("Review required: risk indicators found");
+    vi.restoreAllMocks();
+  });
+
+  it("accepts an Excel transaction workbook and shows the file-level assessment", async () => {
+    mockFraudApis();
+    const upload = vi.spyOn(api, "uploadFraudTransactions").mockResolvedValue({
+      ...uploadResult,
+      file_name: "statement.xlsx",
+      assessment: "no_indicators_found",
+      assessment_note: "No configured risk indicators were found. This does not prove the file or transactions are legitimate.",
+      alerts_created: 0,
+    });
+
+    render(<FraudDetection />);
+    expect(await screen.findByTestId("fraud-page")).toBeInTheDocument();
+    const file = new File(["workbook fixture"], "statement.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const input = screen.getByLabelText("Fraud transaction file") as HTMLInputElement;
+    expect(input.accept).toContain(".xlsx");
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(upload).toHaveBeenCalledWith(file));
+    expect(await screen.findByTestId("fraud-file-assessment")).toHaveTextContent("No configured indicators found");
+    expect(screen.getByTestId("fraud-file-assessment")).toHaveTextContent("does not prove");
     vi.restoreAllMocks();
   });
 

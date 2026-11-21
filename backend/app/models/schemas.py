@@ -285,10 +285,7 @@ class DocumentListItem(BaseModel):
 
 
 class ReportRequest(BaseModel):
-    business_name: str
     period: str
-    ratios: list[RatioOut] = Field(default_factory=list)
-    risk: RiskResponse | None = None
     notes: str = ""
 
 

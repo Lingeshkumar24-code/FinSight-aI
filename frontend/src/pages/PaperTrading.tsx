@@ -1,9 +1,28 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { api, ApiError, type Portfolio, type Snapshot, type Trade } from "../lib/api";
+import { api, ApiError, type DashboardSummary, type Portfolio, type Snapshot, type Trade } from "../lib/api";
 import { Card } from "../components/ui/Card";
 
 function rupees(value: number): string {
   return `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
+
+type RiskProfile = "conservative" | "balanced" | "growth";
+
+function numericField(record: Record<string, unknown> | undefined, key: string): string {
+  const value = record?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+}
+
+function latestFinancialRecord(summary: DashboardSummary): Record<string, unknown> | undefined {
+  const records = summary.records ?? [];
+  return records.find((record) => numericField(record, "revenue") || numericField(record, "total_assets")) ?? records[records.length - 1];
+}
+
+function ageEquityLimit(age: number): number {
+  if (age <= 35) return 85;
+  if (age <= 50) return 70;
+  if (age <= 60) return 55;
+  return 40;
 }
 
 export function PaperTrading() {
@@ -13,6 +32,11 @@ export function PaperTrading() {
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [portfolioName, setPortfolioName] = useState("Growth Model");
   const [initialCash, setInitialCash] = useState(100000);
+  const [investorAge, setInvestorAge] = useState("");
+  const [riskProfile, setRiskProfile] = useState<RiskProfile>("balanced");
+  const [companyRevenue, setCompanyRevenue] = useState("");
+  const [companyAssets, setCompanyAssets] = useState("");
+  const [generatedPlan, setGeneratedPlan] = useState<{ age: number; risk: RiskProfile; equityPct: number; equityBudget: number; cashReserve: number; revenue: string; assets: string } | null>(null);
   const [symbol, setSymbol] = useState("TCS.NS");
   const [side, setSide] = useState("buy");
   const [quantity, setQuantity] = useState(10);
@@ -34,7 +58,13 @@ export function PaperTrading() {
     let cancelled = false;
     async function load() {
       try {
-        const list = await refreshPortfolios();
+        const [list] = await Promise.all([refreshPortfolios(), api.getDashboard().then((summary) => {
+          const record = latestFinancialRecord(summary);
+          if (record) {
+            setCompanyRevenue(numericField(record, "revenue"));
+            setCompanyAssets(numericField(record, "total_assets"));
+          }
+        }).catch(() => undefined)]);
         if (!cancelled) setSelectedId(list[0]?.id ?? null);
       } catch (err) {
         if (!cancelled) setError(err instanceof ApiError ? err.message : "Failed to load portfolios");
@@ -76,12 +106,22 @@ export function PaperTrading() {
 
   async function createPortfolio(event: FormEvent) {
     event.preventDefault();
+    const age = Number(investorAge);
+    if (!Number.isInteger(age) || age < 18 || age > 100 || !Number.isFinite(initialCash) || initialCash <= 0) {
+      setActionError("Enter an age from 18 to 100 and positive virtual cash.");
+      return;
+    }
+    const riskEquity = { conservative: 35, balanced: 60, growth: 80 }[riskProfile];
+    const equityPct = Math.min(riskEquity, ageEquityLimit(age));
+    const equityBudget = Math.round(initialCash * equityPct / 100);
+    const cashReserve = initialCash - equityBudget;
     setBusy(true);
     setActionError(null);
     try {
       const created = await api.createPortfolio(portfolioName, initialCash);
       await refreshPortfolios();
       setSelectedId(created.id);
+      setGeneratedPlan({ age, risk: riskProfile, equityPct, equityBudget, cashReserve, revenue: companyRevenue, assets: companyAssets });
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "Could not create portfolio");
     } finally {
@@ -177,13 +217,34 @@ export function PaperTrading() {
                 <input id="portfolio-name" value={portfolioName} onChange={(event) => setPortfolioName(event.target.value)} />
               </div>
               <div>
+                <label htmlFor="investor-age">Investor age</label>
+                <input id="investor-age" type="number" min="18" max="100" required value={investorAge} onChange={(event) => setInvestorAge(event.target.value)} placeholder="e.g. 35" />
+              </div>
+              <div>
+                <label htmlFor="risk-profile">Risk appetite</label>
+                <select id="risk-profile" value={riskProfile} onChange={(event) => setRiskProfile(event.target.value as RiskProfile)}>
+                  <option value="conservative">Conservative</option>
+                  <option value="balanced">Balanced</option>
+                  <option value="growth">Growth</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="company-revenue">Uploaded company revenue (₹)</label>
+                <input id="company-revenue" type="number" min="0" value={companyRevenue} onChange={(event) => setCompanyRevenue(event.target.value)} placeholder="Not available" />
+              </div>
+              <div>
+                <label htmlFor="company-assets">Uploaded company assets (₹)</label>
+                <input id="company-assets" type="number" min="0" value={companyAssets} onChange={(event) => setCompanyAssets(event.target.value)} placeholder="Not available" />
+              </div>
+              <div>
                 <label htmlFor="initial-cash">Virtual cash</label>
-                <input id="initial-cash" type="number" value={initialCash} onChange={(event) => setInitialCash(Number(event.target.value))} />
+                <input id="initial-cash" type="number" min="1" required value={initialCash} onChange={(event) => setInitialCash(Number(event.target.value))} />
               </div>
               <div className="form-action">
-                <button className="btn btn-primary" type="submit" disabled={busy}>Create portfolio</button>
+                <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? "Generating…" : "Generate virtual portfolio"}</button>
               </div>
             </form>
+            <p className="muted-note mt-3">Revenue and assets are shown as company context only. The allocation uses age, risk appetite, and virtual cash; no real orders are placed. Profile details stay in this session.</p>
           </Card>
 
           <Card>
@@ -227,6 +288,24 @@ export function PaperTrading() {
         <div className="flex flex-col gap-5">
           {selected ? (
             <>
+              <Card>
+                {generatedPlan && <div className="flex flex-col gap-3" data-testid="generated-portfolio-plan">
+                  <div className="section-header">
+                    <div>
+                      <h2>Generated virtual allocation</h2>
+                      <p className="muted-note">{generatedPlan.age} years · {generatedPlan.risk} risk profile · based on your virtual cash</p>
+                    </div>
+                    <span className="section-run">Simulation only</span>
+                  </div>
+                  <div className="kpi-grid">
+                    <div className="metric"><div className="metric-label">Equity target ({generatedPlan.equityPct}%)</div><div className="metric-value num">{rupees(generatedPlan.equityBudget)}</div></div>
+                    <div className="metric"><div className="metric-label">Cash reserve</div><div className="metric-value num">{rupees(generatedPlan.cashReserve)}</div></div>
+                    <div className="metric"><div className="metric-label">Company revenue context</div><div className="metric-value num">{generatedPlan.revenue ? rupees(Number(generatedPlan.revenue)) : "Not available"}</div></div>
+                    <div className="metric"><div className="metric-label">Company assets context</div><div className="metric-value num">{generatedPlan.assets ? rupees(Number(generatedPlan.assets)) : "Not available"}</div></div>
+                  </div>
+                  <p className="muted-note">Planning heuristic for paper trading only; it is not personalized financial advice. No holdings are purchased automatically.</p>
+                </div>}
+              </Card>
               <Card>
                 <div className="section-header">
                   <h2>{selected.name}</h2>

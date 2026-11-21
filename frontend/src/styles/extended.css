@@ -196,6 +196,11 @@
 
 .section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .section-header h2 { margin: 0; font-size: 16px; }
+.fraud-assessment { border: 1px solid var(--border); border-left: 4px solid var(--border-strong); border-radius: 12px; padding: 16px; background: var(--surface); display: grid; gap: 8px; }
+.fraud-assessment.is-risk { border-left-color: var(--risk); }
+.fraud-assessment.is-clear { border-left-color: var(--positive); }
+.fraud-assessment.is-unknown { border-left-color: var(--border-strong); }
+.fraud-assessment p { margin: 0; }
 .section-run { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-muted); }
 
 .stat-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }

@@ -138,4 +138,27 @@ describe("Phase 2 pages", () => {
     ));
     vi.restoreAllMocks();
   });
+
+  it("generates an age and risk based virtual allocation without sending profile data to the API", async () => {
+    const createPortfolio = vi.spyOn(api, "createPortfolio").mockResolvedValue(portfolio);
+    vi.spyOn(api, "listPortfolios").mockResolvedValueOnce([]).mockResolvedValue([portfolio]);
+    vi.spyOn(api, "getDashboard").mockResolvedValue({
+      available: true,
+      records: [{ period: "FY2025", revenue: 2500000, total_assets: 4200000 }],
+    });
+    vi.spyOn(api, "getTransactions").mockResolvedValue([]);
+    vi.spyOn(api, "getSnapshots").mockResolvedValue([]);
+
+    render(<PaperTrading />);
+    await screen.findByTestId("paper-trading-page");
+    fireEvent.change(screen.getByLabelText("Investor age"), { target: { value: "40" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generate virtual portfolio" }));
+
+    await waitFor(() => expect(createPortfolio).toHaveBeenCalledWith("Growth Model", 100000));
+    expect(await screen.findByTestId("generated-portfolio-plan")).toHaveTextContent("Equity target (60%)");
+    expect(screen.getByTestId("generated-portfolio-plan")).toHaveTextContent("₹60,000");
+    expect(screen.getByTestId("generated-portfolio-plan")).toHaveTextContent("₹40,000");
+    expect(screen.getByTestId("generated-portfolio-plan")).toHaveTextContent("₹25,00,000");
+    vi.restoreAllMocks();
+  });
 });

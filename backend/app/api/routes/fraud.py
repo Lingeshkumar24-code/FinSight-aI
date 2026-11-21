@@ -6,11 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import Settings, get_settings
 from app.db.session import get_session
 from app.core.security import TokenPayload, get_current_user
 from app.db.extensions import AlertReview, FraudAlert, FraudTransaction
 from app.db.util import as_dict, iso
-from app.engines.fraud_detection import detect_fraud, parse_transaction_csv, summarize_fraud
+from app.engines.fraud_detection import detect_fraud, parse_transaction_file, summarize_fraud
 from app.models.schemas_ext import (
     AlertOut,
     FraudSummaryOut,
@@ -39,9 +40,13 @@ async def upload_transactions(
     file: UploadFile,
     user: TokenPayload = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> FraudUploadOut:
-    raw = await file.read()
-    parsed, errors = parse_transaction_csv(raw)
+    raw = await file.read(settings.MAX_UPLOAD_BYTES + 1)
+    if len(raw) > settings.MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"File exceeds the {settings.MAX_UPLOAD_BYTES // (1024 * 1024)} MB upload limit")
+    file_name = file.filename or "uploaded-file"
+    parsed, errors = parse_transaction_file(raw, file_name)
     batch_id = str(uuid.uuid4())
 
     existing = (await session.execute(
@@ -70,8 +75,17 @@ async def upload_transactions(
     await session.commit()
 
     summary = summarize_fraud(history + new_records, alerts)
+    assessment = "unable_to_assess" if not parsed else ("review_required" if alerts else "no_indicators_found")
+    assessment_note = {
+        "unable_to_assess": "No valid transaction rows were extracted. Correct the file format or required date/amount columns and upload again.",
+        "review_required": "Configured risk indicators were found. These are review flags, not a determination that fraud occurred.",
+        "no_indicators_found": "No configured risk indicators were found in the extracted rows. This does not prove the file or transactions are legitimate.",
+    }[assessment]
     return FraudUploadOut(
         batch_id=batch_id,
+        file_name=file_name,
+        assessment=assessment,
+        assessment_note=assessment_note,
         received=len(parsed) + len(errors),
         valid=len(parsed),
         invalid=len(errors),
